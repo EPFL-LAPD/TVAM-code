@@ -33,6 +33,7 @@ VELOCITY = args.velocity
 DMD_DUTY_CYCLE = args.DMD_duty_cycle
 assert DMD_DUTY_CYCLE < 1 and DMD_DUTY_CYCLE > 0.28
 
+assert VELOCITY <= 80
 num_turns = args.num_turns
 BASEDIR = r"D:/"
 SINOGRAM_DIR = args.path 
@@ -259,7 +260,7 @@ dmd.timingSeq(name_of_sequences[0], int(parameters["DMD_Picture_time[us]"]))
 # Initialize stage
 stage, axis, stage_settings, connection = initializeStage(port_id='COM4')
 maxspeed = 100
-accel = 3
+accel = 3 + VELOCITY / 80 * 17
 stage_setSpeedLims(stage_settings, maxspeed, accel)
 
 time.sleep(5)
@@ -317,20 +318,8 @@ pulse_DMD = ContinuousPulseTrainGeneration(period=dmd_trig_period,
 axis.move_velocity(VELOCITY, unit=Units.ANGULAR_VELOCITY_DEGREES_PER_SECOND)
 
 position = axis.get_position(unit=Units.ANGLE_DEGREES)
-#while position < 360:
-#    position = axis.get_position(unit=Units.ANGLE_DEGREES)
-#    print(position)
 
-def gradient_color(ratio):
-    start = (0, 0, 255)
-    end = (0, 255, 0)
-    red = int(start[0] +ratio*(end[0]-start[0]))
-    green = int(start[1] +ratio(end[1]-start[1]))
-    blue = int(start[2]+ratio(end[2]-start[2]))
-    return f'\033[38;2;{red};{green};{blue}m'
-
-
-with tqdm.tqdm(total = 360, desc = "Acceleratinggggg", bar_format= '{l_bar}{bar}') as pbar:
+with tqdm.tqdm(total = 360, desc = "Acceleratinggggg", bar_format= '{l_bar}{bar}{r_bar}') as pbar:
     while position < 360:
         position = axis.get_position(unit=Units.ANGLE_DEGREES)
         pbar.update(int(position)-pbar.n)
@@ -339,15 +328,8 @@ with tqdm.tqdm(total = 360, desc = "Acceleratinggggg", bar_format= '{l_bar}{bar}
 t_dmd = time.time()
 dmd.startContProj(name_of_sequences[0])
 pulse_DMD.start()
-print(time.time() - t_dmd)
 print("DMD is being triggered")
 
-# check this function. for how long it does sthg
-# dmd.waitProj() # pauses the script until the current playing sequence has finished
-
-# t_0 = time.time()
-# t_end = t_0 + t_rot
-# time.sleep(t_rot)
 print("")
 ti = 0
 t0 = time.time()
