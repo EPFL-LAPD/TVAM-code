@@ -4,7 +4,43 @@
 @author: wechsler
 adapted from very old code
 """
-   
+import os
+import argparse
+
+# Instantiate the parser
+parser = argparse.ArgumentParser(description='Optional app description')
+parser.add_argument('-s', '--step_angle', help="step angle in degree. 360/number_of_images, default is 0.36",
+                    action="store", type=float, default=0.36)
+
+parser.add_argument('-v', '--velocity', help="rotation speed in deg/sec, default is 40.0",
+                    action="store", type=float, default=40.0)
+
+parser.add_argument('-d', '--DMD_duty_cycle', help="DMD duty cycle, default is 0.99",
+                    action="store", type=float, default=0.99)
+
+parser.add_argument('-n', '--num_turns', help="number of turns, default is 3",
+                    action="store", type=int, default=3)
+
+parser.add_argument('-p', '--path', help="path to images, no default",
+                    action="store")
+
+#parser.parse_args(['-h'])
+
+args = parser.parse_args()
+STEP_ANGLE = args.step_angle
+
+VELOCITY = args.velocity
+DMD_DUTY_CYCLE = args.DMD_duty_cycle
+assert DMD_DUTY_CYCLE < 1 and DMD_DUTY_CYCLE > 0.28
+
+num_turns = args.num_turns
+BASEDIR = r"D:/"
+SINOGRAM_DIR = args.path 
+IMAGE_DIRECTORY = os.path.join(SINOGRAM_DIR, '*.png')
+
+
+
+
 # Imports 
 from PIL import Image
 import numpy as np
@@ -20,7 +56,6 @@ import nidaqmx
 from nidaqmx.constants import TriggerType, Edge, AcquisitionType, TaskMode, LineGrouping
 import nidaqmx.system
 import collections
-import os
 import os.path as osp
 from PyDAQmx.DAQmxFunctions import *
 from PyDAQmx.DAQmxConstants import *
@@ -36,42 +71,12 @@ import sys
 sys.path.append(r'D:\vialux')
 
 from communication import DMD as communication
+import tqdm
 
-import argparse
-
-# Instantiate the parser
-parser = argparse.ArgumentParser(description='Optional app description')
 
 ####### Parameters for PRINTING 
 Nsat = 1 # W-ARNING: if not equal to 1 you change patterns intensity
 
-
-parser.add_argument('-s', '--step_angle', help="step angle in degree. 360/number_of_images",
-                    action="store", type=float, default=0.36)
-
-parser.add_argument('-v', '--velocity', help="rotation speed in deg/sec",
-                    action="store", type=float, default=40.0)
-
-parser.add_argument('-d', '--DMD_duty_cycle', help="DMD duty cycle,default 0.99",
-                    action="store", type=float, default=0.99)
-
-parser.add_argument('-n', '--num_turns', help="number of turns",
-                    action="store", type=int, default=3)
-
-parser.add_argument('-p', '--path', help="path to images",
-                    action="store")
-
-args = parser.parse_args()
-STEP_ANGLE = args.step_angle
-
-VELOCITY = args.velocity
-DMD_DUTY_CYCLE = args.DMD_duty_cycle
-assert DMD_DUTY_CYCLE < 1 and DMD_DUTY_CYCLE > 0.28
-
-num_turns = args.num_turns
-BASEDIR = r"D:/"
-SINOGRAM_DIR = args.path 
-IMAGE_DIRECTORY = os.path.join(SINOGRAM_DIR, '*.png')
 
 
 
@@ -312,10 +317,24 @@ pulse_DMD = ContinuousPulseTrainGeneration(period=dmd_trig_period,
 axis.move_velocity(VELOCITY, unit=Units.ANGULAR_VELOCITY_DEGREES_PER_SECOND)
 
 position = axis.get_position(unit=Units.ANGLE_DEGREES)
-while position < 360:
-    position = axis.get_position(unit=Units.ANGLE_DEGREES)
-    print(position)
+#while position < 360:
+#    position = axis.get_position(unit=Units.ANGLE_DEGREES)
+#    print(position)
 
+def gradient_color(ratio):
+    start = (0, 0, 255)
+    end = (0, 255, 0)
+    red = int(start[0] +ratio*(end[0]-start[0]))
+    green = int(start[1] +ratio(end[1]-start[1]))
+    blue = int(start[2]+ratio(end[2]-start[2]))
+    return f'\033[38;2;{red};{green};{blue}m'
+
+
+with tqdm.tqdm(total = 360, desc = "Acceleratinggggg", bar_format= '{l_bar}{bar}') as pbar:
+    while position < 360:
+        position = axis.get_position(unit=Units.ANGLE_DEGREES)
+        pbar.update(int(position)-pbar.n)
+    
 
 t_dmd = time.time()
 dmd.startContProj(name_of_sequences[0])
