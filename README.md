@@ -28,7 +28,7 @@ To print the current commands for a trigger do:
 \trigger <number> print
 ```
 
-Where <number> indentifies a specific trigger
+Where number indentifies a specific trigger
 
 Each trigger has one condition and can have up to two actions. The trigger needs to be enabled:
 
@@ -44,8 +44,8 @@ To fire a trigger, you also need to set an I/O output:
 /trigger 1 action a io set do <number1> <number2>
 ```
 
-Where <number1> identifies the output channel
-      <number2> is the electrical signal (0 or 1)
+Where number1 identifies the output channel
+      number2 is the electrical signal (0 or 1)
 
 Maximum step size is 384.000
 
