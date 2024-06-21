@@ -1,3 +1,8 @@
+/*
+This script outputs a signal if both input signal are on at the same time. 
+Additionally it displayes the current inputs and outputs everytime a change occurs.
+*/
+
 const int inputPin1 = 2;  // Define the pin for the first input signal
 const int inputPin2 = 3;  // Define the pin for the second input signal
 const int outputPin = 13; // Define the pin for the output signal 
