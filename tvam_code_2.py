@@ -7,7 +7,6 @@ Created on Wed Jun 19 15:21:28 2024
 
 from zaber_motion.ascii import Connection
 from zaber_motion import Units
-from zaber_motion.ascii import DigitalOutputAction
 import time
 from tqdm import tqdm
 
@@ -17,6 +16,14 @@ import argparse
 
 
 def process_arguments():
+  
+    """
+   Parse and process command-line arguments.
+
+   Returns:
+       argparse.Namespace: Parsed command-line arguments.
+   """
+    
     # Instantiate the parser
     parser = argparse.ArgumentParser(description='Optional app description')
     parser.add_argument('-s', '--step_angle', help="step angle in degree. 360/number_of_images, default is 0.36",
@@ -39,7 +46,7 @@ def process_arguments():
     
     #parser.parse_args(['-h'])
     args = parser.parse_args()
-    assert args.DMD_duty_cycle < 1 and DMD_duty_cycle > 0.28
+    assert args.DMD_duty_cycle < 1 and args.DMD_duty_cycle > 0.28
     assert args.velocity <= 80
     
     return args
@@ -47,6 +54,15 @@ def process_arguments():
     
 
 def stop_dmd_stage(axis, dmd):
+   
+    """
+   Stop the DMD and stage.
+
+   Args:
+       axis: The axis object of the stage.
+       dmd: The DMD object.
+   """
+    
     try:
         #dmd.haltProj()
         #dmd.free()
@@ -60,13 +76,24 @@ def stop_dmd_stage(axis, dmd):
 
 
 def initialize_stage(printing_parameters, triggers_per_round=1000):
+   
+    """
+   Initialize the stage and set up triggers.
+
+   Args:
+       printing_parameters (argparse.Namespace): Parsed command-line arguments.
+       triggers_per_round (int): Number of triggers per round, default is 1000.
+
+   Returns:
+       axis: The axis object of the stage.
+   """
+   
     stage_one_turn_steps = 384_000
 
     assert stage_one_turn_steps % (2 * triggers_per_round) ("{} has to be divisible by 2 * {}".format(stage_one_turn_steps, triggers_per_round))
 
     stage_handler = Connection.open_serial_port(printing_parameters.port_stage)
     print("Initialize stage, initialize triggers and reset triggers to 0")
-
 
     # indicates the steps to turn one round on the stage
     #Trigger 1 - Set digital output 1 == 1 when pos > 360°
@@ -98,6 +125,16 @@ def initialize_stage(printing_parameters, triggers_per_round=1000):
     
     
 def print_TVAM(axis, dmd, printing_parameters):
+    
+    """
+   Print using the TVAM process.
+
+   Args:
+       axis: The axis object of the stage.
+       dmd: The DMD object.
+       printing_parameters (argparse.Namespace): Parsed command-line arguments.
+   """
+    
     axis.move_velocity(printing_parameters.velocity, unit=Units.ANGULAR_VELOCITY_DEGREES_PER_SECOND)
     
     
@@ -126,6 +163,14 @@ def print_TVAM(axis, dmd, printing_parameters):
 
 
 def initialize_DMD():
+    
+    """
+    Initialize the DMD.
+
+    Returns:
+        tuple: The DMD object and number of images.
+    """
+    
     #BASEDIR = r"D:/"
     #SINOGRAM_DIR = args.path 
     #IMAGE_DIRECTORY = os.path.join(SINOGRAM_DIR, '*.png')#
