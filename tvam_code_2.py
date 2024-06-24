@@ -99,13 +99,13 @@ def initialize_stage(printing_parameters, triggers_per_round=1000):
     if WarningFlags.CONTROLLER_TEMPERATURE_HIGH in warning_flags:
         print("Device is overheating!")
     else:
-        temperature = stage_handler.temperature
-        print("{}, it is recommended that the temperature is below 80 °C").format(temperature)
+        temperature = stage_handler.generic_command("get driver.temperature").data
+        print("The current temperature is {}\n It is recommended that the temperature is below 80 °C").format(temperature)
     
         
     print("Initialize stage, initialize triggers and reset triggers to 0")
+    # indicates the steps to turn one round on the stage")
 
-    # indicates the steps to turn one round on the stage
     #Trigger 1 - Set digital output 1 == 1 when pos > 360°
     stage_handler.generic_command("system restore")
     # trigger when position >= 360°
