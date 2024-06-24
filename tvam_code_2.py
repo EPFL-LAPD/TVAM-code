@@ -8,6 +8,7 @@ Created on Wed Jun 19 15:21:28 2024
 from zaber_motion.ascii import Connection
 from zaber_motion import Units
 import time
+from zaber_motion.ascii import WarningFlags
 from tqdm import tqdm
 
 
@@ -81,7 +82,7 @@ def initialize_stage(printing_parameters, triggers_per_round=1000):
    Initialize the stage and set up triggers.
 
    Args:
-       printing_parameters (argparse.Namespace): Parsed command-line arguments.
+       printing_parameters (argparse.fstage Namespace): Parsed command-line arguments.
        triggers_per_round (int): Number of triggers per round, default is 1000.
 
    Returns:
@@ -93,12 +94,20 @@ def initialize_stage(printing_parameters, triggers_per_round=1000):
     assert stage_one_turn_steps % (2 * triggers_per_round) ("{} has to be divisible by 2 * {}".format(stage_one_turn_steps, triggers_per_round))
 
     stage_handler = Connection.open_serial_port(printing_parameters.port_stage)
+    
+    warning_flags = stage_handler.warnings.get_flags()
+    if WarningFlags.CONTROLLER_TEMPERATURE_HIGH in warning_flags:
+        print("Device is overheating!")
+    else:
+        temperature = stage_handler.temperature
+        print("{}, it is recommended that the temperature is below 80 °C").format(temperature)
+    
+        
     print("Initialize stage, initialize triggers and reset triggers to 0")
 
     # indicates the steps to turn one round on the stage
     #Trigger 1 - Set digital output 1 == 1 when pos > 360°
     stage_handler.generic_command("system restore")
-    
     # trigger when position >= 360°
     stage_handler.generic_command("trigger 1 when 1 pos >= {}").format(stage_one_turn_steps) 
     #set digital output 1 to 1
