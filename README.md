@@ -65,7 +65,7 @@ axis.home()
 #set I/O toggle interval, set in microsteps
 interval = 384000/1000
 
-#Trigger 1 - Set digital output 1 == 1 when pos > 360°
+#Trigger 1 - Set digital output 1 = 1 when pos > 360°
 connection.generic_command("trigger 1 when 1 pos >= 1536000") #trigger when position >= 360°
 connection.generic_command('trigger 1 action a io set do 1 1') #set digital output 1 to 1
 connection.generic_command("trigger 1 enable") #enable trigger
@@ -80,7 +80,14 @@ axis.stop()
 pos_final = axis.get_position(unit=Units.ANGLE_DEGREES)
 axis.home()
 ```
-    
+
+### Appendix
+
+The output of .generic_command() is returned in the array:
+
+```
+[device_address, axis_number, reply_flag, status, warning_flag, data, message_type]
+```
 
 
 
