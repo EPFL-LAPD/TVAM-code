@@ -53,7 +53,7 @@ Maximum step size is 384.000
 The "native speed" is in degrees/second
 
 ### Code 
-
+```
 port_id = input("Please enter port_id\n")
 
 connection = Connection.open_serial_port(port_id)
@@ -79,6 +79,7 @@ connection.generic_command("trigger 2 enable")
 axis.stop()
 pos_final = axis.get_position(unit=Units.ANGLE_DEGREES)
 axis.home()
+```
     
 
 
