@@ -14,6 +14,8 @@ from tqdm import tqdm
 
 import os
 import argparse
+import numpy as np
+from multiprocessing import Pool
 
 
 def process_arguments():
@@ -44,6 +46,10 @@ def process_arguments():
     
     parser.add_argument('-ps', '--port_stage', help="port of the stage",
                         action="store", type=str, default="COM3")
+    
+    parser.add_argument('-a', '--amplitude', type=float, help="Amplitude of the sinusoidal wobble.")
+    
+    parser.add_argument('-ph', 'phase', type=float, help="Phase shift of the sinusoidal wobble.")
     
     #parser.parse_args(['-h'])
     args = parser.parse_args()
@@ -185,6 +191,20 @@ def initialize_DMD():
     #IMAGE_DIRECTORY = os.path.join(SINOGRAM_DIR, '*.png')#
 
     return 0
+
+def correct_rotation_axis_wobbling(patterns, angles, amplitude, phase):
+    assert patterns.shape[1] == angles.shape[0], "Size mismatch between angles and patterns"
+    patterns_out = np.copy(patterns)
+    
+    def process_column(i):
+        φ = angles[i]
+        shift_value = round(amplitude * np.sin(φ + phase))
+        patterns_out[:, i, :] = np.roll(patterns[:, i, :], shift_value, axis=0)
+    
+    with Pool() as pool:
+        pool.map(process_column, range(patterns.shape[1]))
+
+    return patterns_out
 
 
 printing_parameters = process_arguments()
