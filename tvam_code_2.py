@@ -10,12 +10,17 @@ from zaber_motion import Units
 import time
 from zaber_motion.ascii import WarningFlags
 from tqdm import tqdm
+from ALP4 import *
 
 
 import os
 import argparse
 import numpy as np
 from multiprocessing import Pool
+
+import tqdm
+from PIL import Image
+
 
 
 def process_arguments():
@@ -47,9 +52,9 @@ def process_arguments():
     parser.add_argument('-ps', '--port_stage', help="port of the stage",
                         action="store", type=str, default="COM3")
     
-    parser.add_argument('-a', '--amplitude', type=float, help="Amplitude of the sinusoidal wobble.")
+    #parser.add_argument('-a', '--amplitude', type=float, help="Amplitude of the sinusoidal wobble.")
     
-    parser.add_argument('-ph', 'phase', type=float, help="Phase shift of the sinusoidal wobble.")
+    #parser.add_argument('-ph', 'phase', type=float, help="Phase shift of the sinusoidal wobble.")
     
     #parser.parse_args(['-h'])
     args = parser.parse_args()
@@ -76,7 +81,12 @@ def stop_dmd_stage(axis, dmd):
         1+1
     except:
         pass
-    
+    # Stop the sequence display
+    dmd.Halt()
+    # Free the sequence from the onboard memory
+    dmd.FreeSeq()
+    # De-allocate the device
+    dmd.Free()
     axis.stop()
     axis.home()
     return
@@ -97,16 +107,9 @@ def initialize_stage(printing_parameters, triggers_per_round=1000):
    
     stage_one_turn_steps = 384_000
 
-    assert stage_one_turn_steps % (2 * triggers_per_round) ("{} has to be divisible by 2 * {}".format(stage_one_turn_steps, triggers_per_round))
+    assert ((stage_one_turn_steps % (2 * triggers_per_round)) == 0), "{} has to be divisible by 2 * {}".format(stage_one_turn_steps, triggers_per_round)
 
     stage_handler = Connection.open_serial_port(printing_parameters.port_stage)
-    
-    warning_flags = stage_handler.warnings.get_flags()
-    if WarningFlags.CONTROLLER_TEMPERATURE_HIGH in warning_flags:
-        print("Device is overheating!")
-    else:
-        temperature = stage_handler.generic_command("get driver.temperature").data
-        print("The current temperature is {}\n It is recommended that the temperature is below 80 °C").format(temperature)
     
         
     print("Initialize stage, initialize triggers and reset triggers to 0")
@@ -115,13 +118,13 @@ def initialize_stage(printing_parameters, triggers_per_round=1000):
     #Trigger 1 - Set digital output 1 == 1 when pos > 360°
     stage_handler.generic_command("system restore")
     # trigger when position >= 360°
-    stage_handler.generic_command("trigger 1 when 1 pos >= {}").format(stage_one_turn_steps) 
+    stage_handler.generic_command("trigger 1 when 1 pos >= {}".format(stage_one_turn_steps))
     #set digital output 1 to 1
     stage_handler.generic_command('trigger 1 action a io set do 1 1')
     stage_handler.generic_command("trigger 1 enable")
     
     
-    stage_handler.generic_command("trigger 3 when 1 pos < {}").format(stage_one_turn_steps)
+    stage_handler.generic_command("trigger 3 when 1 pos < {}".format(stage_one_turn_steps))
     # when it is below <360°, set trigger hard to 0
     stage_handler.generic_command('trigger 3 action a io set do 1 0') 
     stage_handler.generic_command("trigger 3 enable")
@@ -136,6 +139,15 @@ def initialize_stage(printing_parameters, triggers_per_round=1000):
     device = device_list[0]
     axis = device.get_axis(1)
     axis.home()
+    
+    warning_flags = axis.warnings.get_flags()
+    if WarningFlags.CONTROLLER_TEMPERATURE_HIGH in warning_flags:
+        print("Device is overheating!")
+    else:
+        temperature = stage_handler.generic_command("get driver.temperature").data
+        print("The current temperature is {}\n It is recommended that the temperature is below 80 °C".format(temperature))
+    
+    
     return axis
     
     
@@ -162,6 +174,8 @@ def print_TVAM(axis, dmd, printing_parameters):
                 
                 
         # DMD.dmd.startContProj(name_of_sequences[0])
+        dmd.Run()
+
         with tqdm.tqdm(total = 360 * printing_parameters.num_turns, desc = "Printinggggg", bar_format= '{l_bar}{bar}{r_bar}') as pbar:
             while position < 360 + 360 * printing_parameters.num_turns:
                 position = axis.get_position(unit=Units.ANGLE_DEGREES)
@@ -177,7 +191,7 @@ def print_TVAM(axis, dmd, printing_parameters):
     return
 
 
-def initialize_DMD():
+def initialize_DMD(printing_parameters):
     
     """
     Initialize the DMD.
@@ -189,8 +203,36 @@ def initialize_DMD():
     #BASEDIR = r"D:/"
     #SINOGRAM_DIR = args.path 
     #IMAGE_DIRECTORY = os.path.join(SINOGRAM_DIR, '*.png')#
+    imgSeq = ([
+        np.asarray(Image.open("../01.png").convert('L')).ravel(),
+        np.asarray(Image.open("../02.png").convert('L')).ravel(),
+        np.asarray(Image.open("../03.png").convert('L')).ravel(),
+        np.asarray(Image.open("../04.png").convert('L')).ravel(),
+        np.asarray(Image.open("../05.png").convert('L')).ravel(),
+        np.asarray(Image.open("../06.png").convert('L')).ravel(),
+        np.asarray(Image.open("../07.png").convert('L')).ravel(),
+        np.asarray(Image.open("../08.png").convert('L')).ravel(),
+        np.asarray(Image.open("../09.png").convert('L')).ravel(),
+        np.asarray(Image.open("../10.png").convert('L')).ravel(),
+    ])
+    imgSeq = np.array(imgSeq)
 
-    return 0
+    
+    # Load the Vialux .dll
+    dmd = ALP4(version = '4.3', libDir=".")
+    # Initialize the device
+    dmd.Initialize()
+
+    print(imgSeq.shape)
+    dmd.SeqAlloc(nbImg = imgSeq.shape[0], bitDepth = 8)
+    # Send the image sequence as a 1D list/array/numpy array
+    print(type(imgSeq))
+    dmd.SeqPut(imgData = imgSeq)
+    # Set image rate to 50 Hz
+    dmd.SetTiming(pictureTime = round(360/imgSeq.shape[0]/printing_parameters.velocity*1_000_000))
+    dmd.ProjControl(ALP_PROJ_MODE, ALP_SLAVE)
+    
+    return dmd, 10
 
 def correct_rotation_axis_wobbling(patterns, angles, amplitude, phase):
     assert patterns.shape[1] == angles.shape[0], "Size mismatch between angles and patterns"
@@ -208,6 +250,6 @@ def correct_rotation_axis_wobbling(patterns, angles, amplitude, phase):
 
 
 printing_parameters = process_arguments()
-dmd, num_of_images = initialize_DMD()
+dmd, num_of_images = initialize_DMD(printing_parameters)
 axis_stage = initialize_stage(printing_parameters, triggers_per_round=num_of_images)
 print_TVAM(axis_stage, dmd, printing_parameters)
