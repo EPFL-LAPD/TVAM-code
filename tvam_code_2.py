@@ -238,7 +238,7 @@ def initialize_DMD(printing_parameters):
     pictureTime = (1 / frequency_image)
     
     
-    assert (frequency_image < 290), ("DMD can only do 290Hz with 8Bit grayscale, you try to do {:.3f}Hz".format(1_000_000/pictureTime))
+    assert (frequency_image < 290), ("DMD can only do 290Hz with 8Bit grayscale. Choose a lower velocity, you tried to do {:.1f}Hz".format(frequency_image))
     
     dmd.SetTiming(pictureTime = round(pictureTime * 1_000_000) - 50)
     dmd.ProjControl(ALP_PROJ_MODE, ALP_SLAVE)
