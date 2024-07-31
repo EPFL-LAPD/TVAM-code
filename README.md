@@ -66,7 +66,7 @@ axis.home()
 interval = 384000/1000
 
 #Trigger 1 - Set digital output 1 = 1 when pos > 360°
-connection.generic_command("trigger 1 when 1 pos >= 1536000") #trigger when position >= 360°
+connection.generic_command("trigger 1 when 1 pos >= 384000") #trigger when position >= 360°
 connection.generic_command('trigger 1 action a io set do 1 1') #set digital output 1 to 1
 connection.generic_command("trigger 1 enable") #enable trigger
 
