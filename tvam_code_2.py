@@ -56,8 +56,10 @@ def process_arguments():
     parser.add_argument('-ps', '--port_stage', help="port of the stage",
                         action="store", type=str, default="COM3")
     
-    #parser.add_argument('-a', '--amplitude', type=float, help="Amplitude of the sinusoidal wobble.", action = "store", type=float, default = 0)
-   # parser.add_argument('-ph', 'phase', type=float, help="Phase shift of the sinusoidal wobble.", action = "store", type=float, default = 0)
+    parser.add_argument('-a', '--amplitude', help="Amplitude of the sinusoidal wobble in DMD pixel.", 
+                        action = "store", type=float, default = 0)
+    parser.add_argument('-ph', '--phase', help="Phase shift of the sinusoidal wobble in degrees.",
+                        action = "store", type=float, default = 0)
     
     #parser.parse_args(['-h'])
     args = parser.parse_args()
@@ -198,7 +200,7 @@ def print_TVAM(axis, dmd, printing_parameters):
     return
 
 
-def initialize_DMD(printing_parameters):
+def initialize_DMD(images, printing_parameters):
     
     """
     Initialize the DMD.
@@ -210,31 +212,20 @@ def initialize_DMD(printing_parameters):
     #BASEDIR = r"D:/"
     #SINOGRAM_DIR = args.path 
     #IMAGE_DIRECTORY = os.path.join(SINOGRAM_DIR, '*.png')#
-    
-    print("Start loading images")
-    filelist = os.listdir(printing_parameters.path)
-    filelist = sorted(filelist)
-    imgSeq = []
-    for i in tqdm.tqdm(filelist):
-        image = os.path.join(printing_parameters.path, i)
-        imgSeq.append(np.asarray(Image.open(image).convert('L')).ravel())
-        
-    
-    imgSeq = np.array(imgSeq)
-    print("We have loaded {} images onto the DMD with size {}\n".format(len(imgSeq), imgSeq[0].shape))
+
+    print("We have loaded {} images onto the DMD with size {}\n".format(len(images), images[0].shape))
     
     # Load the Vialux .dll
     dmd = ALP4(version = '4.3', libDir=".")
     # Initialize the device
     dmd.Initialize()
 
-    dmd.SeqAlloc(nbImg = imgSeq.shape[0], bitDepth = 8)
+    dmd.SeqAlloc(nbImg = images.shape[0], bitDepth = 8)
     # Send the image sequence as a 1D list/array/numpy array
-    dmd.SeqPut(imgData = imgSeq)
+    dmd.SeqPut(imgData = images)
     # Show images for ~95% of period between triggers; essentially DUTY_CYCLE=0.95
         
-    print(imgSeq.shape)
-    frequency_image = printing_parameters.velocity / 360 * imgSeq.shape[0]
+    frequency_image = printing_parameters.velocity / 360 * images.shape[0]
     pictureTime = (1 / frequency_image)
     
     
@@ -244,24 +235,44 @@ def initialize_DMD(printing_parameters):
     dmd.ProjControl(ALP_PROJ_MODE, ALP_SLAVE)
     dmd.DevControl(ALP_TRIGGER_EDGE, ALP_EDGE_RISING)
     
-    return dmd, imgSeq.shape[0]
+    return dmd, images.shape[0]
 
-def correct_rotation_axis_wobbling(patterns, angles, amplitude, phase):
-    assert patterns.shape[1] == angles.shape[0], "Size mismatch between angles and patterns"
-    patterns_out = np.copy(patterns)
+def load_images_and_correct_rotation_axis_wobbling(printing_parameters):        
+    print("Start loading images")
+    filelist = os.listdir(printing_parameters.path)
+    filelist = sorted(filelist)
+    images = []
+    for i in tqdm.tqdm(filelist):
+        image = os.path.join(printing_parameters.path, i)
+        images.append(np.asarray(Image.open(image).convert('L')))
+        
+    print("Image shape is {}".format(images[0].shape))
     
-    def process_column(i):
+    images = np.array(images)
+    
+    assert (images.shape[1] == 768 and images.shape[2] == 1024), "Image size is not 768 x 1024"
+    
+    
+    if printing_parameters.amplitude == 0 and printing_parameters.phase == 0:
+        return images.reshape(images.shape[0], -1)
+    
+    
+    angles = np.linspace(0, 2 * np.pi, images.shape[0], endpoint=False)
+    
+    
+    print("\nApply wobbling correction:")
+    for i in tqdm.tqdm(range(images.shape[0])):
         φ = angles[i]
-        shift_value = round(amplitude * np.sin(φ + phase))
-        patterns_out[:, i, :] = np.roll(patterns[:, i, :], shift_value, axis=0)
+        shift_value = round(printing_parameters.amplitude * np.sin(φ + 
+                                                                 printing_parameters.phase / 360 * 2 * np.pi))
+        images[i, :, :] = np.roll(images[i, :, :], shift_value, axis=0)
     
-    with Pool() as pool:
-        pool.map(process_column, range(patterns.shape[1]))
 
-    return patterns_out
+    return images.reshape(images.shape[0], -1)
 
 
 printing_parameters = process_arguments()
-dmd, num_of_images = initialize_DMD(printing_parameters)
+images = load_images_and_correct_rotation_axis_wobbling(printing_parameters)
+dmd, num_of_images = initialize_DMD(images, printing_parameters)
 axis_stage = initialize_stage(printing_parameters, triggers_per_round=num_of_images)
 print_TVAM(axis_stage, dmd, printing_parameters)

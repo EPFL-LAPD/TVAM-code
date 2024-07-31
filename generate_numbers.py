@@ -16,7 +16,8 @@ from PIL import ImageFont
 for i in range(1000):
     img = np.zeros((768, 1024))
     
-    # Open an Image
+    img[768 // 2 -1 :768 // 2 + 2 , :] = 255
+    # Open an Image 
     img = Image.fromarray(img).convert("L")
      
     # Call draw Method to add 2D graphics in an image
@@ -26,10 +27,10 @@ for i in range(1000):
     
     
     # Add Text to an image
-    I1.text((28, 36), "{:04}".format(i), 255, font=font)
+    #I1.text((28, 36), "{:04}".format(i), 255, font=font)
      
     # Display edited image
     
      
     # Save the edited image
-    img.save("images_1000/{:04}.png".format(i))
+    img.save("images_line/{:04}.png".format(i))
