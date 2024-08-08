@@ -27,7 +27,6 @@ void loop() {
   while(true){
     signal1 = digitalRead(inputPin1); // Read the state of the first input signal
     signal2 = digitalRead(inputPin2); // Read the state of the second input signal
-    signal3 = signal1 && signal2;
 
     if (signal1 == HIGH && signal2 == HIGH) { // Check if both input signals are on
       digitalWrite(outputPin, HIGH);
@@ -44,35 +43,5 @@ void loop() {
     //Serial.println(signal3);
     //delay(1);
   }
-
-  while(true){
-    signal1 = digitalRead(inputPin1); // Read the state of the first input signal
-    signal2 = digitalRead(inputPin2); // Read the state of the second input signal
-    if(signal1_before != signal1){
-        signal1_before = signal1;
-        //Serial.print("Signal1: ");
-        //Serial.println(signal1);
-    } 
-    if(signal2_before != signal2){
-        signal2_before = signal2;
-        //Serial.print("Signal2: ");
-        //Serial.println(signal2);
-    } 
-  
-    if (signal1 == HIGH && signal2 == HIGH) { // Check if both input signals are on
-      signal3 = 1;
-      digitalWrite(outputPin, HIGH);
-    } else {
-      signal3 = 0;
-      digitalWrite(outputPin, LOW);
-    }
- 
-    if(signal3_before != signal3){
-        signal3_before = signal3;
-        Serial.print("Signal3: ");
-        Serial.println(signal3);
-    } 
-  }
-  //delay(100);
 }
 
