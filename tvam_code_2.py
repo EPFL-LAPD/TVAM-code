@@ -53,8 +53,8 @@ def process_arguments():
     parser.add_argument('-p', '--path', help="path to images, no default",
                         action="store")
     
-    parser.add_argument('-ps', '--port_stage', help="port of the stage",
-                        action="store", type=str, default="COM3")
+    parser.add_argument('-ps', '--port_stage', help="port of the stage, default is \"COM4\"",
+                        action="store", type=str, default="COM4")
     
     parser.add_argument('-a', '--amplitude', help="Amplitude of the sinusoidal wobble in DMD pixel.", 
                         action = "store", type=float, default = 0)
@@ -216,7 +216,7 @@ def initialize_DMD(images, printing_parameters):
     print("We have loaded {} images onto the DMD with size {}\n".format(len(images), images[0].shape))
     
     # Load the Vialux .dll
-    dmd = ALP4(version = '4.3', libDir=".")
+    dmd = ALP4(version = '4.2')
     # Initialize the device
     dmd.Initialize()
 
