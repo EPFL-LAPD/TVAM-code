@@ -5,6 +5,39 @@ Created on Wed Jun 19 15:21:28 2024
 @author: adminlapd
 """
 
+WELCOME = "\
+ /$$      /$$           /$$                                             \n\
+| $$  /$ | $$          | $$                                             \n\
+| $$ /$$$| $$  /$$$$$$ | $$  /$$$$$$$  /$$$$$$  /$$$$$$/$$$$   /$$$$$$  \n\
+| $$/$$ $$ $$ /$$__  $$| $$ /$$_____/ /$$__  $$| $$_  $$_  $$ /$$__  $$ \n\
+| $$$$_  $$$$| $$$$$$$$| $$| $$      | $$  \ $$| $$ \ $$ \ $$| $$$$$$$$ \n\
+| $$$/ \  $$$| $$_____/| $$| $$      | $$  | $$| $$ | $$ | $$| $$_____/ \n\
+| $$/   \  $$|  $$$$$$$| $$|  $$$$$$$|  $$$$$$/| $$ | $$ | $$|  $$$$$$$ \n\
+|__/     \__/ \_______/|__/ \_______/ \______/ |__/ |__/ |__/ \_______/ \n\
+                                                                        \n\
+   /$$                                                                  \n\
+  | $$                                                                  \n\
+ /$$$$$$    /$$$$$$                                                     \n\
+|_  $$_/   /$$__  $$                                                    \n\
+  | $$    | $$  \ $$                                                    \n\
+  | $$ /$$| $$  | $$                                                    \n\
+  |  $$$$/|  $$$$$$/                                                    \n\
+   \___/   \______/                                                     \n\
+                                                                        \n\
+ /$$        /$$$$$$  /$$$$$$$  /$$$$$$$                                 \n\
+| $$       /$$__  $$| $$__  $$| $$__  $$                                \n\
+| $$      | $$  \ $$| $$  \ $$| $$  \ $$                                \n\
+| $$      | $$$$$$$$| $$$$$$$/| $$  | $$                                \n\
+| $$      | $$__  $$| $$____/ | $$  | $$                                \n\
+| $$      | $$  | $$| $$      | $$  | $$                                \n\
+| $$$$$$$$| $$  | $$| $$      | $$$$$$$/                                \n\
+|________/|__/  |__/|__/      |_______/                                 \n\
+"
+
+print(WELCOME)
+
+
+
 from zaber_motion.ascii import Connection
 from zaber_motion import Units
 import time
@@ -65,7 +98,7 @@ def process_arguments():
     args = parser.parse_args()
     #assert args.DMD_duty_cycle < 1 and args.DMD_duty_cycle > 0.28, "Duty cycle has to be in that range"
     assert args.velocity <= 120, "Do not turn the stage too fast"
-    
+    assert args.num_turns >= 1, "Do more than 0 rotations, only integer amount supported"
     return args
 
     
@@ -151,7 +184,7 @@ def initialize_stage(printing_parameters, triggers_per_round=1000):
         print("Device is overheating!")
     else:
         temperature = stage_handler.generic_command("get driver.temperature").data
-        print("The current temperature is {} °C\nIt is recommended that the temperature is below 80 °C\n".format(temperature))
+        print("The current temperature of the stage is {} °C\nIt is recommended that the temperature is below 80 °C\n".format(temperature))
     
     
     return axis
@@ -178,17 +211,18 @@ def print_TVAM(axis, dmd, printing_parameters):
         
     try:
         position = axis.get_position(unit=Units.NATIVE)
-        with tqdm.tqdm(total = STAGE_ONE_TURN_STEPS, desc = "Acceleratinggggg, print after 360°", bar_format= '{l_bar}{bar}{r_bar}') as pbar:
+        with tqdm.tqdm(total = 360, desc = "Acceleratinggggg, print after 360°", bar_format= '{l_bar}{bar}{r_bar}') as pbar:
             while position < STAGE_ONE_TURN_STEPS:
                 position = axis.get_position(unit=Units.NATIVE)
-                pbar.update(int(position)-pbar.n)
+                if position < STAGE_ONE_TURN_STEPS:
+                    pbar.update(int(position / STAGE_ONE_TURN_STEPS * 360) - pbar.n)
         
         
 
-        with tqdm.tqdm(total = STAGE_ONE_TURN_STEPS * printing_parameters.num_turns, desc = "Printinggggg", bar_format= '{l_bar}{bar}{r_bar}') as pbar:
+        with tqdm.tqdm(total = 360 * printing_parameters.num_turns, desc = "Printinggggg", bar_format= '{l_bar}{bar}{r_bar}') as pbar:
             while position < STAGE_ONE_TURN_STEPS * (1 + printing_parameters.num_turns) - 1:
                 position = axis.get_position(unit=Units.NATIVE)
-                pbar.update(int(position)-pbar.n - STAGE_ONE_TURN_STEPS)
+                pbar.update(int(position / STAGE_ONE_TURN_STEPS * 360) - pbar.n - 360)
                 
         stop_dmd_stage(axis, dmd)
 
@@ -208,12 +242,7 @@ def initialize_DMD(images, printing_parameters):
     Returns:
         tuple: The DMD object and number of images.
     """
-    
-    #BASEDIR = r"D:/"
-    #SINOGRAM_DIR = args.path 
-    #IMAGE_DIRECTORY = os.path.join(SINOGRAM_DIR, '*.png')#
 
-    print("We have loaded {} images onto the DMD with size {}\n".format(len(images), images[0].shape))
     
     # Load the Vialux .dll
     dmd = ALP4(version = '4.2')
@@ -222,23 +251,24 @@ def initialize_DMD(images, printing_parameters):
 
     dmd.SeqAlloc(nbImg = images.shape[0], bitDepth = 8)
     # Send the image sequence as a 1D list/array/numpy array
-    dmd.SeqPut(imgData = images)
-    # Show images for ~95% of period between triggers; essentially DUTY_CYCLE=0.95
-        
+    print("We are loading {} images onto the DMD.".format(len(images)))
+    dmd.SeqPut(imgData = images)  
     frequency_image = printing_parameters.velocity / 360 * images.shape[0]
     pictureTime = (1 / frequency_image)
     
-    
     assert (frequency_image < 290), ("DMD can only do 290Hz with 8Bit grayscale. Choose a lower velocity, you tried to do {:.1f}Hz".format(frequency_image))
     
+    # we subtract 50µs, if pictureTime is longer than the time between two triggers, no new image is shown
     dmd.SetTiming(pictureTime = round(pictureTime * 1_000_000) - 50)
     dmd.ProjControl(ALP_PROJ_MODE, ALP_SLAVE)
     dmd.DevControl(ALP_TRIGGER_EDGE, ALP_EDGE_RISING)
-    
+    print("Done setting up DMD and images are loaded.\n")
     return dmd, images.shape[0]
 
+
+
 def load_images_and_correct_rotation_axis_wobbling(printing_parameters):        
-    print("Start loading images")
+    print("Start loading images into RAM.")
     filelist = os.listdir(printing_parameters.path)
     filelist = sorted(filelist)
     images = []
@@ -246,14 +276,15 @@ def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
         image = os.path.join(printing_parameters.path, i)
         images.append(np.asarray(Image.open(image).convert('L')))
         
-    print("Image shape is {}".format(images[0].shape))
+    print("The detected image shape is {}".format(images[0].shape))
     
     images = np.array(images)
     
     assert (images.shape[1] == 768 and images.shape[2] == 1024), "Image size is not 768 x 1024"
     
-    
+
     if printing_parameters.amplitude == 0 and printing_parameters.phase == 0:
+        print()
         return images.reshape(images.shape[0], -1)
     
     
@@ -267,7 +298,7 @@ def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
                                                                  printing_parameters.phase / 360 * 2 * np.pi))
         images[i, :, :] = np.roll(images[i, :, :], shift_value, axis=0)
     
-
+    print()
     return images.reshape(images.shape[0], -1)
 
 
