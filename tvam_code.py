@@ -93,6 +93,8 @@ def process_arguments():
     parser.add_argument('--reverse_angles', action='store_true', help="Reverse the angle, equivalent to rotating reverse direction",
                         default=False)
 
+    parser.add_argument('--flip_vertical', action='store_true', help="Flip vertical direction of DMD images.",
+                        default=False)
  
     args = parser.parse_args()
     assert 0 < args.velocity <= 120, "Do not turn the stage too fast or too slow"
@@ -138,13 +140,14 @@ def initialize_stage(printing_parameters, triggers_per_round=1000):
        axis: The axis object of the stage.
    """
    
+    print("Initialize stage, initialize triggers and reset triggers to 0\n")
 
     assert ((STAGE_ONE_TURN_STEPS % (2 * triggers_per_round)) == 0), "{} has to be divisible by 2 * {}".format(STAGE_ONE_TURN_STEPS, triggers_per_round)
 
     stage_handler = Connection.open_serial_port(printing_parameters.port_stage)
     
         
-    print("Initialize stage, initialize triggers and reset triggers to 0\n")
+
     # indicates the steps to turn one round on the stage")
 
     #Trigger 1 - Set digital output 1 == 1 when pos > 360°
@@ -280,13 +283,17 @@ def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
     if printing_parameters.reverse_angles:
         print("Reverse angular order images")
         images = images[::-1, :, :]
+
+    if printing_parameters.flip_vertical:
+        print("Flip vertical axis of images.")
+        images = images[:, :, ::-1]
+
     assert (images.shape[1] == 768 and images.shape[2] == 1024), "Image size is not 768 x 1024"
     
 
     if printing_parameters.amplitude == 0 and printing_parameters.phase == 0:
         print()
         return images.reshape(images.shape[0], -1)
-    
     
     angles = np.linspace(0, 2 * np.pi, images.shape[0], endpoint=False)
     
@@ -300,6 +307,7 @@ def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
     
     print()
     return images.reshape(images.shape[0], -1)
+
 
 print(WELCOME)
 printing_parameters = process_arguments()
