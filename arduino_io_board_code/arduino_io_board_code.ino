@@ -18,11 +18,9 @@ void loop() {
 
   int signal1 = digitalRead(inputPin1); // Read the state of the first input signal
   int signal2 = digitalRead(inputPin2); // Read the state of the second input signal
-  int signal3 = 0;
 
   int signal1_before = 0;
   int signal2_before = 0;
-  int signal3_before = 0; 
 
   while(true){
     signal1 = digitalRead(inputPin1); // Read the state of the first input signal
