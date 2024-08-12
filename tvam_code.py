@@ -1,382 +1,278 @@
 # -*- coding: utf-8 -*-
 """
+Created on Wed Jun 19 15:21:28 2024
 
-@author: wechsler
-adapted from very old code
+@author: adminlapd
 """
-import os
-import argparse
 
-# Instantiate the parser
-parser = argparse.ArgumentParser(description='Optional app description')
-parser.add_argument('-s', '--step_angle', help="step angle in degree. 360/number_of_images, default is 0.36",
-                    action="store", type=float, default=0.36)
-
-parser.add_argument('-v', '--velocity', help="rotation speed in deg/sec, default is 40.0",
-                    action="store", type=float, default=40.0)
-
-parser.add_argument('-d', '--DMD_duty_cycle', help="DMD duty cycle, default is 0.99",
-                    action="store", type=float, default=0.99)
-
-parser.add_argument('-n', '--num_turns', help="number of turns, default is 3",
-                    action="store", type=int, default=3)
-
-parser.add_argument('-p', '--path', help="path to images, no default",
-                    action="store")
-
-#parser.parse_args(['-h'])
-
-args = parser.parse_args()
-STEP_ANGLE = args.step_angle
-
-VELOCITY = args.velocity
-DMD_DUTY_CYCLE = args.DMD_duty_cycle
-assert DMD_DUTY_CYCLE < 1 and DMD_DUTY_CYCLE > 0.28
-
-assert VELOCITY <= 80
-num_turns = args.num_turns
-BASEDIR = r"D:/"
-SINOGRAM_DIR = args.path 
-IMAGE_DIRECTORY = os.path.join(SINOGRAM_DIR, '*.png')
-
-
-
-
-# Imports 
-from PIL import Image
-import numpy as np
-import sys
-import time
-import matplotlib.pyplot as plt
-
-import matplotlib.pyplot as plt
-import glob
-import math
-
-import nidaqmx
-from nidaqmx.constants import TriggerType, Edge, AcquisitionType, TaskMode, LineGrouping
-import nidaqmx.system
-import collections
-import os.path as osp
-from PyDAQmx.DAQmxFunctions import *
-from PyDAQmx.DAQmxConstants import *
-from zaber_motion import Library
 from zaber_motion.ascii import Connection
 from zaber_motion import Units
-from zaber_motion import Measurement
-from zaber_motion.ascii import Response
-from zaber_motion.ascii import DeviceSettings
-from zaber_motion.ascii import SettingConstants
+import time
+from zaber_motion.ascii import WarningFlags
+from tqdm import tqdm
+from ALP4 import *
 
-import sys
-sys.path.append(r'D:\vialux')
 
-from communication import DMD as communication
+import os
+import argparse
+import numpy as np
+from multiprocessing import Pool
+
 import tqdm
+from PIL import Image
+import os
 
 
-####### Parameters for PRINTING 
-Nsat = 1 # W-ARNING: if not equal to 1 you change patterns intensity
-
-
-
-
+STAGE_ONE_TURN_STEPS = 384_000
 
 
 
+def process_arguments():
+  
+    """
+   Parse and process command-line arguments.
 
+   Returns:
+       argparse.Namespace: Parsed command-line arguments.
+   """
+    
+    # Instantiate the parser
+    parser = argparse.ArgumentParser(description='Optional app description')
+    parser.add_argument('-s', '--step_angle', help="step angle in degree. 360/number_of_images, default is 0.36",
+                        action="store", type=float, default=0.36)
+    
+    parser.add_argument('-v', '--velocity', help="rotation speed in deg/sec, default is 40.0",
+                        action="store", type=float, default=40.0)
+    
+    #parser.add_argument('-d', '--DMD_duty_cycle', help="DMD duty cycle, default is 0.99",
+    #                    action="store", type=float, default=0.95)
+    
+    parser.add_argument('-n', '--num_turns', help="number of turns, default is 3",
+                        action="store", type=int, default=3)
+    
+    parser.add_argument('-p', '--path', help="path to images, no default",
+                        action="store")
+    
+    parser.add_argument('-ps', '--port_stage', help="port of the stage, default is \"COM4\"",
+                        action="store", type=str, default="COM4")
+    
+    parser.add_argument('-a', '--amplitude', help="Amplitude of the sinusoidal wobble in DMD pixel.", 
+                        action = "store", type=float, default = 0)
+    parser.add_argument('-ph', '--phase', help="Phase shift of the sinusoidal wobble in degrees.",
+                        action = "store", type=float, default = 0)
+    
+    #parser.parse_args(['-h'])
+    args = parser.parse_args()
+    #assert args.DMD_duty_cycle < 1 and args.DMD_duty_cycle > 0.28, "Duty cycle has to be in that range"
+    assert args.velocity <= 120, "Do not turn the stage too fast"
+    
+    return args
 
+    
 
+def stop_dmd_stage(axis, dmd):
+   
+    """
+   Stop the DMD and stage.
 
+   Args:
+       axis: The axis object of the stage.
+       dmd: The DMD object.
+   """
+    
+    try:
+        dmd.Halt()
+        # Free the sequence from the onboard memory
+        dmd.FreeSeq()
+        # De-allocate the device
+        dmd.Free()
+    except:
+        pass
 
-# CONSTANTS
-sys.path.append(IMAGE_DIRECTORY)
-
-DATA_FORMAT = 0 
-
-# continueous pulse class
-class ContinuousPulseTrainGeneration():
-    """ Class to create a continuous pulse train on a counter
-    Usage:  pulse = ContinuousTrainGeneration(period [s],
-                duty_cycle (default = 0.5), counter (default = "dev1/ctr0"),
-                reset = True/False)"""
-    def __init__(self, period=1., duty_cycle=0.5, counter="Dev1/ctr0", reset=False):
-        if reset:
-            DAQmxResetDevice(counter.split('/')[0])
-        taskHandle = TaskHandle(0)
-        DAQmxCreateTask("",byref(taskHandle))
-        DAQmxCreateCOPulseChanFreq(taskHandle,counter,"",DAQmx_Val_Hz,DAQmx_Val_Low,
-                                                                   0.0,1/float(period),duty_cycle)
-        DAQmxCfgImplicitTiming(taskHandle,DAQmx_Val_ContSamps,1000)
-        self.taskHandle = taskHandle
-    def start(self):
-        DAQmxStartTask(self.taskHandle)
-    def stop(self):
-        DAQmxStopTask(self.taskHandle)
-    def clear(self):
-        DAQmxClearTask(self.taskHandle)
-
-
-# STAGE
-def initializeStage(port_id):
-    ''' Initialize the rotational stage, its axis and its settings from the name of the usb port (port_id)'''
-    connection = Connection.open_serial_port(port_id)
-    device_list = connection.detect_devices() # get list of connected zaber devices
-    device = device_list[0]
-    axis = device.get_axis(1) # get axis of device
+    axis.stop()
     axis.home()
-    device_settings = DeviceSettings(device)  # create instance for device settings
+    return
+
+
+def initialize_stage(printing_parameters, triggers_per_round=1000):
+   
+    """
+   Initialize the stage and set up triggers.
+
+   Args:
+       printing_parameters (argparse.fstage Namespace): Parsed command-line arguments.
+       triggers_per_round (int): Number of triggers per round, default is 1000.
+
+   Returns:
+       axis: The axis object of the stage.
+   """
+   
+
+    assert ((STAGE_ONE_TURN_STEPS % (2 * triggers_per_round)) == 0), "{} has to be divisible by 2 * {}".format(STAGE_ONE_TURN_STEPS, triggers_per_round)
+
+    stage_handler = Connection.open_serial_port(printing_parameters.port_stage)
     
-    return device, axis, device_settings, connection
-
-
-def stage_setSpeedLims(device_settings, maxspeed=100, accel=10):
-    device_settings.set(setting='maxspeed', value=maxspeed,
-                        unit=Units.ANGULAR_VELOCITY_DEGREES_PER_SECOND)  # set maxspeed
-    device_settings.set(setting='accel', value=accel,
-                        unit=Units.ANGULAR_ACCELERATION_DEGREES_PER_SECOND_SQUARED)  # set accel
-
-
-# DMD
-MAX_IMAGES_MEMORY = 2730     #This is the maximum number of 8-bit images that can fit in DMD memory wrt to optimal timing etc
-def import_bin_file():
-    print("Importing images...")
-    print("This might take a while...")
-    images = np.fromfile("train_labelsF.bin",  dtype='B')
-    nbr_of_images = int(len(images)/(1024*768))
-    print(nbr_of_images, " images detected")
-    number_of_packages = math.ceil(nbr_of_images / MAX_IMAGES_MEMORY)
-    print("Number of packages needed: ", number_of_packages)
-    list_of_seq = [None] * number_of_packages
-    name_of_seq = [None] * number_of_packages
-    for k in range(number_of_packages):
-        name_of_seq[k] = 'seq' + str(k)
-        k_seq = images[(k *(1024*768)* MAX_IMAGES_MEMORY):((k + 1)*(1024*768) * MAX_IMAGES_MEMORY)]
-        print("Number of images in this packet is ", int(len(k_seq)/(1024*768)))
-        list_of_seq[k] = k_seq
-        print("Package", (k + 1), "over", number_of_packages, "completed")
-        image_print = k_seq[(1024*768)*3:4*(1024*768)]
-        image_print.resize(768,1024)
-        imgagee = Image.fromarray(image_print)
-        imgagee.save('table.png')
-
-    return list_of_seq, name_of_seq, nbr_of_images
-
-def compile_images(dmd, dmd_pattern):
-    images = dmd_pattern.astype(np.uint8)
-    nbr_of_images = int(len(images))
-    print(nbr_of_images, " images detected")
-    number_of_packages = math.ceil(len(images) / MAX_IMAGES_MEMORY)
-    print("Number of packages needed: ", number_of_packages)
-    list_of_seq = [None] * number_of_packages
-    name_of_seq = [None] * number_of_packages
-    for k in range(number_of_packages):
-        name_of_seq[k] = 'seq' + str(k)
-        k_seq = images[(k * MAX_IMAGES_MEMORY):((k + 1) * MAX_IMAGES_MEMORY)]
-        print("Number of images in this packet is ", len(k_seq))
-        # list_of_seq[k] = communication.compilePicture(k_seq, int(len(k_seq)))
-        list_of_seq[k] = communication.compilePicturev2fast(dmd, k_seq)
-        print("Package", (k + 1), "over", number_of_packages, "completed")
-
-    return list_of_seq, name_of_seq, nbr_of_images
-
-
-def import_and_compile_images(dmd, image_dir, Nsat):
-    filelist = glob.glob(image_dir)
-    print("Importing images...")
-    print("This might take a while...")
-    images = np.array([Nsat*np.array(Image.open(fname)) for fname in filelist], dtype=np.uint8)
-    # images = np.array([np.array(Image.open(fname)) for fname in filelist], dtype=np.uint8) * mask
-    # images = np.uint8(images)
-    nbr_of_images = int(len(images))
-    print(nbr_of_images, " images detected")
-    number_of_packages = math.ceil(len(images) / MAX_IMAGES_MEMORY)
-    print("Number of packages needed: ", number_of_packages)
-    list_of_seq = [None] * number_of_packages
-    name_of_seq = [None] * number_of_packages
-    for k in range(number_of_packages):
-        name_of_seq[k] = 'seq' + str(k)
-        k_seq = images[(k * MAX_IMAGES_MEMORY):((k + 1) * MAX_IMAGES_MEMORY)]
-        print("Number of images in this packet is ", len(k_seq))
-        # list_of_seq[k] = communication.compilePicture(k_seq, int(len(k_seq)))
-        list_of_seq[k] = communication.compilePicturev2fast(dmd, k_seq)
-        print("Package", (k + 1), "over", number_of_packages, "completed")
-
-    return list_of_seq, name_of_seq, nbr_of_images
-
-def save_experiment_parameters(parameters_out):
-    with open(parameters_out["file_name"], 'w') as f:
-        print("electrodes_sampling_freq[Hz]: ", parameters_out["electrodes_sampling_freq[Hz]"], file=f)
-        print("trigger_freq[Hz]: ", parameters_out["trigger_freq[Hz]"], file=f)
-        print("trigger_Thigh[us]: ", parameters_out["trigger_Thigh[us]"], file=f)
-        print("trigger_Tlow[us]: ", parameters_out["trigger_Tlow[us]"], file=f)
-        print("images_directory: ", parameters_out["images_directory"], file=f)
-        print("DMD_Picture_time[us]: ", parameters_out["DMD_Picture_time[us]"], file=f)
-        print("nbr_of_images: ", parameters_out["nbr_of_images"], file=f)
-    print("Data of this packet saved")
-
-
-#########################9###################
-
-# Initialize Digital Micromirror Device (DMD)
-dmd = communication()
-
-# Load patterns to DMD
-
-# DMD parameters. No need to modify them
-parameters = dict()
-parameters["electrodes_sampling_freq[Hz]"] = 10000
-parameters["trigger_freq[Hz]"] = VELOCITY/STEP_ANGLE
-parameters["images_directory"] = IMAGE_DIRECTORY
-dmd_on_time = 1/parameters["trigger_freq[Hz]"]*1e6
-parameters["DMD_Picture_time[us]"] = DMD_DUTY_CYCLE*dmd_on_time
-
-if parameters["DMD_Picture_time[us]"] > (1/parameters["trigger_freq[Hz]"])*1e6:
-    print("DMD picture time bigger than T not possible")
-    print("The program will close")
-    input("Press enter to close the program...")
-    sys.exit()
-
-list_of_sequences, name_of_sequences, parameters["nbr_of_images"] = import_and_compile_images(dmd, IMAGE_DIRECTORY, Nsat)
-nbr_of_packets = int(len(list_of_sequences))
-
-nbr_images_in_this_packet = int(len(list_of_sequences[0])/(768*1024))
-
-# configuration of the DMD with the wanted parameters
-dmd.controlProj('ALP_PROJ_MODE', 'ALP_SLAVE')
-dmd.controlDev('ALP_EDGE_RISING')
-
-print("Starting loading image")
-start_loading = time.time()
-dmd.allocSeq(name_of_sequences[0], nbr_images_in_this_packet, 
-             data_format=DATA_FORMAT)
-dmd.putSeq(name_of_sequences[0], list_of_sequences[0])
-print("The transfer took", (time.time()-start_loading), "seconds")
-print("All images loaded")
-dmd.timingSeq(name_of_sequences[0], int(parameters["DMD_Picture_time[us]"]))
-
-# Initialize STAGE and DAQ
- 
-# Initialize stage
-stage, axis, stage_settings, connection = initializeStage(port_id='COM4')
-maxspeed = 100
-accel = 3 + VELOCITY / 80 * 17
-stage_setSpeedLims(stage_settings, maxspeed, accel)
-
-time.sleep(5)
-
-# initialize DAQ
-system = nidaqmx.system.System.local()
-system.driver_version
-for device in system.devices:
-    print(device)
-          
-isinstance(system.devices, collections.Sequence)     
-
-daq = system.devices['Dev1']
-daq == nidaqmx.system.Device('Dev1')
-
-# DEFINE DAQ LINES
-laser_line = 'Dev1/port2/line4'
-dmd_trigger_line = "Dev1/ctr1"
-
-# PRINT
-# 1. set stage to movement at steady speed
-pos_initial = axis.get_position(unit=Units.ANGLE_DEGREES)
-
-t_acceleration = 5
-t_0 = time.time()
-t_measure_speed_0 = t_0 + t_acceleration
-t_measure_speed_end = t_measure_speed_0 + 3
-
-times = []
-positions = []
-
-#num_turns = input("number of turns to print: \n")
-
-t_rot = float(num_turns)*360/VELOCITY
-
-# 3. send triggers to DMD
-dmd_trig_period = 1/parameters["trigger_freq[Hz]"]
-pulse_DMD = ContinuousPulseTrainGeneration(period=dmd_trig_period, 
-                                           duty_cycle=0.2,
-                                           counter=dmd_trigger_line, 
-                                           reset=True)
-
-# Start the DMD, it will wait for a trigger comming from the stimulus generator
-# Create task for lasers
-# 2. Turn lasers on
-#task_lasers = nidaqmx.Task()
-#task_lasers.do_channels.add_do_chan(laser_line)
-#task_lasers.start()
-#task_lasers.write(data=True, auto_start=True, timeout=10)
-#print("lasers are ON")
-
-
-#time.sleep(t_acceleration)
-
-axis.move_velocity(VELOCITY, unit=Units.ANGULAR_VELOCITY_DEGREES_PER_SECOND)
-
-position = axis.get_position(unit=Units.ANGLE_DEGREES)
-
-with tqdm.tqdm(total = 360, desc = "Acceleratinggggg", bar_format= '{l_bar}{bar}{r_bar}') as pbar:
-    while position < 360:
-        position = axis.get_position(unit=Units.ANGLE_DEGREES)
-        pbar.update(int(position)-pbar.n)
-    
-
-t_dmd = time.time()
-dmd.startContProj(name_of_sequences[0])
-pulse_DMD.start()
-print("DMD is being triggered")
-
-print("")
-ti = 0
-t0 = time.time()
-ti = t0
-ti0 = t0
-fac = 100
-nb_bloc = 50
-
-try:
-    while ti < t0+t_rot:
-        ti = time.time()
-        tii = ti
-        if tii > ti0+t_rot/fac:
-            sys.stdout.write('\r')
-            i = np.floor((ti-t0)/t_rot*nb_bloc)
-            i = int(i)
-            sys.stdout.write("[%-49s] %d%%" % ('■'*i, (i+1)*fac/nb_bloc))  # 49 = nb_bloc-1
-            sys.stdout.flush()
-            ti0 = tii
-except KeyboardInterrupt:
-    pass
         
-print("")
+    print("Initialize stage, initialize triggers and reset triggers to 0\n")
+    # indicates the steps to turn one round on the stage")
+
+    #Trigger 1 - Set digital output 1 == 1 when pos > 360°
+    stage_handler.generic_command("system restore")
+    # trigger when position >= 360°
+    stage_handler.generic_command("trigger 1 when 1 pos >= {}".format(STAGE_ONE_TURN_STEPS))
+    #set digital output 1 to 1
+    stage_handler.generic_command('trigger 1 action a io set do 1 1')
+    stage_handler.generic_command("trigger 1 enable")
+    
+    
+    stage_handler.generic_command("trigger 3 when 1 pos < {}".format(STAGE_ONE_TURN_STEPS))
+    # when it is below <360°, set trigger hard to 0
+    stage_handler.generic_command('trigger 3 action a io set do 1 0') 
+    stage_handler.generic_command("trigger 3 enable")
+    
+    
+    #Trigger 2 - toggle digital output 2 based on distance interval
+    stage_handler.generic_command("trigger 2 when 1 dist {}".format(STAGE_ONE_TURN_STEPS // (2 * triggers_per_round)))
+    stage_handler.generic_command("trigger 2 action a io set do 2 t")
+    stage_handler.generic_command("trigger 2 enable")
+    
+    
+    stage_handler.generic_command("trigger 4 when 1 pos == 0")
+    stage_handler.generic_command("trigger 4 action a io set do 2 1")
+    stage_handler.generic_command("trigger 4 enable")
+    
+    device_list = stage_handler.detect_devices()
+    device = device_list[0]
+    axis = device.get_axis(1)
+    axis.home()
+    
+    warning_flags = axis.warnings.get_flags()
+    if WarningFlags.CONTROLLER_TEMPERATURE_HIGH in warning_flags:
+        print("Device is overheating!")
+    else:
+        temperature = stage_handler.generic_command("get driver.temperature").data
+        print("The current temperature is {} °C\nIt is recommended that the temperature is below 80 °C\n".format(temperature))
+    
+    
+    return axis
+    
+    
+def print_TVAM(axis, dmd, printing_parameters):
+    
+    """
+   Print using the TVAM process.
+
+   Args:
+       axis: The axis object of the stage.
+       dmd: The DMD object.
+       printing_parameters (argparse.Namespace): Parsed command-line arguments.
+   """
+    #axis.move_velocity(printing_parameters.velocity, unit=Units.ANGULAR_VELOCITY_DEGREES_PER_SECOND)
+
+    dmd.Run()
+
+    # move stage to an absolute position, this command is non-block, so it moves to the next line
+    axis.move_absolute(STAGE_ONE_TURN_STEPS * (printing_parameters.num_turns + 1) - 1, Units.NATIVE, 
+                       False, 
+                       printing_parameters.velocity, Units.ANGULAR_VELOCITY_DEGREES_PER_SECOND)
+        
+    try:
+        position = axis.get_position(unit=Units.NATIVE)
+        with tqdm.tqdm(total = STAGE_ONE_TURN_STEPS, desc = "Acceleratinggggg, print after 360°", bar_format= '{l_bar}{bar}{r_bar}') as pbar:
+            while position < STAGE_ONE_TURN_STEPS:
+                position = axis.get_position(unit=Units.NATIVE)
+                pbar.update(int(position)-pbar.n)
+        
+        
+
+        with tqdm.tqdm(total = STAGE_ONE_TURN_STEPS * printing_parameters.num_turns, desc = "Printinggggg", bar_format= '{l_bar}{bar}{r_bar}') as pbar:
+            while position < STAGE_ONE_TURN_STEPS * (1 + printing_parameters.num_turns) - 1:
+                position = axis.get_position(unit=Units.NATIVE)
+                pbar.update(int(position)-pbar.n - STAGE_ONE_TURN_STEPS)
+                
+        stop_dmd_stage(axis, dmd)
+
+    except KeyboardInterrupt:
+        print("Keyboard interrupt. Homing stage and stop.")
+        stop_dmd_stage(axis, dmd)
+    print("Print over, inspect sample")
+    
+    return
 
 
-# Stop the display of the sequence.
-dmd.haltProj()
-pulse_DMD.stop()
-pulse_DMD.clear()
+def initialize_DMD(images, printing_parameters):
+    
+    """
+    Initialize the DMD.
 
-print("DMD stopped")
-dmd.freeSeq(name_of_sequences[0])
-# stop the stage
-axis.stop()
-pos_final = axis.get_position(unit=Units.ANGLE_DEGREES)
-axis.home()
-print("stage is home")
+    Returns:
+        tuple: The DMD object and number of images.
+    """
+    
+    #BASEDIR = r"D:/"
+    #SINOGRAM_DIR = args.path 
+    #IMAGE_DIRECTORY = os.path.join(SINOGRAM_DIR, '*.png')#
 
-displacement = pos_final - pos_initial
-print('displacement : {0:.2f}  deg'.format(displacement))
-print("")
-print('Print TIME = : {0:.2f}  s'.format(ti-t0))
-print('Percentage = : {0:.2f}  '.format(((ti-t0)/t_rot)*100))
-print('Nb_turns = : {0:.2f} '.format((ti-t0)/360*VELOCITY))
+    print("We have loaded {} images onto the DMD with size {}\n".format(len(images), images[0].shape))
+    
+    # Load the Vialux .dll
+    dmd = ALP4(version = '4.2')
+    # Initialize the device
+    dmd.Initialize()
 
-# Free DMD Sequence
-#dmd.freeSeq(name_of_sequences[0])
-dmd.free()
+    dmd.SeqAlloc(nbImg = images.shape[0], bitDepth = 8)
+    # Send the image sequence as a 1D list/array/numpy array
+    dmd.SeqPut(imgData = images)
+    # Show images for ~95% of period between triggers; essentially DUTY_CYCLE=0.95
+        
+    frequency_image = printing_parameters.velocity / 360 * images.shape[0]
+    pictureTime = (1 / frequency_image)
+    
+    
+    assert (frequency_image < 290), ("DMD can only do 290Hz with 8Bit grayscale. Choose a lower velocity, you tried to do {:.1f}Hz".format(frequency_image))
+    
+    dmd.SetTiming(pictureTime = round(pictureTime * 1_000_000) - 50)
+    dmd.ProjControl(ALP_PROJ_MODE, ALP_SLAVE)
+    dmd.DevControl(ALP_TRIGGER_EDGE, ALP_EDGE_RISING)
+    
+    return dmd, images.shape[0]
+
+def load_images_and_correct_rotation_axis_wobbling(printing_parameters):        
+    print("Start loading images")
+    filelist = os.listdir(printing_parameters.path)
+    filelist = sorted(filelist)
+    images = []
+    for i in tqdm.tqdm(filelist):
+        image = os.path.join(printing_parameters.path, i)
+        images.append(np.asarray(Image.open(image).convert('L')))
+        
+    print("Image shape is {}".format(images[0].shape))
+    
+    images = np.array(images)
+    
+    assert (images.shape[1] == 768 and images.shape[2] == 1024), "Image size is not 768 x 1024"
+    
+    
+    if printing_parameters.amplitude == 0 and printing_parameters.phase == 0:
+        return images.reshape(images.shape[0], -1)
+    
+    
+    angles = np.linspace(0, 2 * np.pi, images.shape[0], endpoint=False)
+    
+    
+    print("\nApply wobbling correction:")
+    for i in tqdm.tqdm(range(images.shape[0])):
+        φ = angles[i]
+        shift_value = round(printing_parameters.amplitude * np.sin(φ + 
+                                                                 printing_parameters.phase / 360 * 2 * np.pi))
+        images[i, :, :] = np.roll(images[i, :, :], shift_value, axis=0)
+    
+
+    return images.reshape(images.shape[0], -1)
 
 
+printing_parameters = process_arguments()
+images = load_images_and_correct_rotation_axis_wobbling(printing_parameters)
+dmd, num_of_images = initialize_DMD(images, printing_parameters)
+axis_stage = initialize_stage(printing_parameters, triggers_per_round=num_of_images)
+print_TVAM(axis_stage, dmd, printing_parameters)
