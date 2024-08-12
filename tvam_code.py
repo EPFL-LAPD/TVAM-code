@@ -34,7 +34,7 @@ WELCOME = "\
 |________/|__/  |__/|__/      |_______/                                 \n\
 "
 
-print(WELCOME)
+
 
 
 
@@ -71,15 +71,10 @@ def process_arguments():
     
     # Instantiate the parser
     parser = argparse.ArgumentParser(description='Optional app description')
-    parser.add_argument('-s', '--step_angle', help="step angle in degree. 360/number_of_images, default is 0.36",
-                        action="store", type=float, default=0.36)
     
-    parser.add_argument('-v', '--velocity', help="rotation speed in deg/sec, default is 40.0",
-                        action="store", type=float, default=40.0)
-    
-    #parser.add_argument('-d', '--DMD_duty_cycle', help="DMD duty cycle, default is 0.99",
-    #                    action="store", type=float, default=0.95)
-    
+    parser.add_argument('-v', '--velocity', help="rotation speed in deg/sec, default is 60.0",
+                        action="store", type=float, default=60.0)
+     
     parser.add_argument('-n', '--num_turns', help="number of turns, default is 3",
                         action="store", type=int, default=3)
     
@@ -89,15 +84,18 @@ def process_arguments():
     parser.add_argument('-ps', '--port_stage', help="port of the stage, default is \"COM4\"",
                         action="store", type=str, default="COM4")
     
-    parser.add_argument('-a', '--amplitude', help="Amplitude of the sinusoidal wobble in DMD pixel.", 
+    parser.add_argument('-a', '--amplitude', help="Amplitude of the sinusoidal wobble in DMD pixel, default 0.", 
                         action = "store", type=float, default = 0)
-    parser.add_argument('-ph', '--phase', help="Phase shift of the sinusoidal wobble in degrees.",
+
+    parser.add_argument('-ph', '--phase', help="Phase shift of the sinusoidal wobble in degrees, default 0.",
                         action = "store", type=float, default = 0)
     
-    #parser.parse_args(['-h'])
+    parser.add_argument('--reverse_angles', action='store_true', help="Reverse the angle, equivalent to rotating reverse direction",
+                        default=False)
+
+ 
     args = parser.parse_args()
-    #assert args.DMD_duty_cycle < 1 and args.DMD_duty_cycle > 0.28, "Duty cycle has to be in that range"
-    assert args.velocity <= 120, "Do not turn the stage too fast"
+    assert 0 < args.velocity <= 120, "Do not turn the stage too fast or too slow"
     assert args.num_turns >= 1, "Do more than 0 rotations, only integer amount supported"
     return args
 
@@ -267,7 +265,7 @@ def initialize_DMD(images, printing_parameters):
 
 
 
-def load_images_and_correct_rotation_axis_wobbling(printing_parameters):        
+def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
     print("Start loading images into RAM.")
     filelist = os.listdir(printing_parameters.path)
     filelist = sorted(filelist)
@@ -279,7 +277,9 @@ def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
     print("The detected image shape is {}".format(images[0].shape))
     
     images = np.array(images)
-    
+    if printing_parameters.reverse_angles:
+        print("Reverse angular order images")
+        images = images[::-1, :, :]
     assert (images.shape[1] == 768 and images.shape[2] == 1024), "Image size is not 768 x 1024"
     
 
@@ -301,7 +301,7 @@ def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
     print()
     return images.reshape(images.shape[0], -1)
 
-
+print(WELCOME)
 printing_parameters = process_arguments()
 images = load_images_and_correct_rotation_axis_wobbling(printing_parameters)
 dmd, num_of_images = initialize_DMD(images, printing_parameters)
