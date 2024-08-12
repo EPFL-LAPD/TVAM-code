@@ -99,32 +99,92 @@ def process_arguments():
     args = parser.parse_args()
     assert 0 < args.velocity <= 120, "Do not turn the stage too fast or too slow"
     assert args.num_turns >= 1, "Do more than 0 rotations, only integer amount supported"
+    
+    print("All args processed succesfully.\n")
     return args
 
     
+def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
 
-def stop_dmd_stage(axis, dmd):
-   
     """
-   Stop the DMD and stage.
-
-   Args:
-       axis: The axis object of the stage.
-       dmd: The DMD object.
-   """
+    Shape images and apply wobbling/ordering/flip corrections
     
-    try:
-        dmd.Halt()
-        # Free the sequence from the onboard memory
-        dmd.FreeSeq()
-        # De-allocate the device
-        dmd.Free()
-    except:
-        pass
+    Returns:
+        numpy array: 2D array where the first dimension is images
+    """
+    
+    print("Start loading images into RAM.")
+    filelist = os.listdir(printing_parameters.path)
+    filelist = sorted(filelist)
+    images = []
+    for i in tqdm.tqdm(filelist):
+        image = os.path.join(printing_parameters.path, i)
+        images.append(np.asarray(Image.open(image).convert('L')))
+        
+    print("The detected image shape is {}".format(images[0].shape))
+    
+    images = np.array(images)
+    if printing_parameters.reverse_angles:
+        print("Reverse angular order images")
+        images = images[::-1, :, :]
 
-    axis.stop()
-    axis.home()
-    return
+    if printing_parameters.flip_vertical:
+        print("Flip vertical axis of images.")
+        images = images[:, :, ::-1]
+
+    assert (images.shape[1] == 768 and images.shape[2] == 1024), "Image size is not 768 x 1024"
+    
+
+    if printing_parameters.amplitude == 0 and printing_parameters.phase == 0:
+        print()
+        return images.reshape(images.shape[0], -1)
+    
+    angles = np.linspace(0, 2 * np.pi, images.shape[0], endpoint=False)
+    
+    
+    print("\nApply wobbling correction:")
+    for i in tqdm.tqdm(range(images.shape[0])):
+        φ = angles[i]
+        shift_value = round(printing_parameters.amplitude * np.sin(φ + 
+                                                                 printing_parameters.phase / 360 * 2 * np.pi))
+        images[i, :, :] = np.roll(images[i, :, :], int(np.round(shift_value)), axis=0)
+    
+    print()
+    return images.reshape(images.shape[0], -1)
+
+
+def initialize_DMD(images, printing_parameters):
+    
+    """
+    Initialize the DMD.
+
+    Returns:
+        tuple: The DMD object and number of images.
+    """
+
+    
+    # Load the Vialux .dll
+    dmd = ALP4(version = '4.2')
+    # Initialize the device
+    dmd.Initialize()
+
+    dmd.SeqAlloc(nbImg = images.shape[0], bitDepth = 8)
+    # Send the image sequence as a 1D list/array/numpy array
+    print("We are loading {} images onto the DMD.".format(len(images)))
+    dmd.SeqPut(imgData = images)  
+    frequency_image = printing_parameters.velocity / 360 * images.shape[0]
+    pictureTime = (1 / frequency_image)
+    
+    assert (frequency_image < 290), ("DMD can only do 290Hz with 8Bit grayscale. Choose a lower velocity, you tried to do {:.1f}Hz".format(frequency_image))
+    
+    # we subtract 50µs, if pictureTime is longer than the time between two triggers, no new image is shown
+    
+    dmd.SetTiming(pictureTime = round(pictureTime * 1_000_000) - 300)
+    #dmd.SetTiming(pictureTime = round(100_000))
+    dmd.ProjControl(ALP_PROJ_MODE, ALP_SLAVE)
+    dmd.DevControl(ALP_TRIGGER_EDGE, ALP_EDGE_RISING)
+    print("Done setting up DMD and images are loaded.\n")
+    return dmd, images.shape[0]
 
 
 def initialize_stage(printing_parameters, triggers_per_round=1000):
@@ -190,7 +250,7 @@ def initialize_stage(printing_parameters, triggers_per_round=1000):
     
     return axis
     
-    
+
 def print_TVAM(axis, dmd, printing_parameters):
     
     """
@@ -235,91 +295,38 @@ def print_TVAM(axis, dmd, printing_parameters):
     return
 
 
-def initialize_DMD(images, printing_parameters):
-    
+def stop_dmd_stage(axis, dmd):
+   
     """
-    Initialize the DMD.
+   Stop the DMD and stage.
 
-    Returns:
-        tuple: The DMD object and number of images.
-    """
+   Args:
+       axis: The axis object of the stage.
+       dmd: The DMD object.
+   """
+    
+    try:
+        dmd.Halt()
+        # Free the sequence from the onboard memory
+        dmd.FreeSeq()
+        # De-allocate the device
+        dmd.Free()
+    except:
+        pass
 
-    
-    # Load the Vialux .dll
-    dmd = ALP4(version = '4.2')
-    # Initialize the device
-    dmd.Initialize()
-
-    dmd.SeqAlloc(nbImg = images.shape[0], bitDepth = 8)
-    # Send the image sequence as a 1D list/array/numpy array
-    print("We are loading {} images onto the DMD.".format(len(images)))
-    dmd.SeqPut(imgData = images)  
-    frequency_image = printing_parameters.velocity / 360 * images.shape[0]
-    pictureTime = (1 / frequency_image)
-    
-    assert (frequency_image < 290), ("DMD can only do 290Hz with 8Bit grayscale. Choose a lower velocity, you tried to do {:.1f}Hz".format(frequency_image))
-    
-    # we subtract 50µs, if pictureTime is longer than the time between two triggers, no new image is shown
-    dmd.SetTiming(pictureTime = round(pictureTime * 1_000_000) - 50)
-    dmd.ProjControl(ALP_PROJ_MODE, ALP_SLAVE)
-    dmd.DevControl(ALP_TRIGGER_EDGE, ALP_EDGE_RISING)
-    print("Done setting up DMD and images are loaded.\n")
-    return dmd, images.shape[0]
-
-
-
-def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
-
-    """
-    Shape images and apply wobbling/ordering/flip corrections
-    
-    Returns:
-        numpy array: 2D array where the first dimension is images
-    """
-    
-    print("Start loading images into RAM.")
-    filelist = os.listdir(printing_parameters.path)
-    filelist = sorted(filelist)
-    images = []
-    for i in tqdm.tqdm(filelist):
-        image = os.path.join(printing_parameters.path, i)
-        images.append(np.asarray(Image.open(image).convert('L')))
-        
-    print("The detected image shape is {}".format(images[0].shape))
-    
-    images = np.array(images)
-    if printing_parameters.reverse_angles:
-        print("Reverse angular order images")
-        images = images[::-1, :, :]
-
-    if printing_parameters.flip_vertical:
-        print("Flip vertical axis of images.")
-        images = images[:, :, ::-1]
-
-    assert (images.shape[1] == 768 and images.shape[2] == 1024), "Image size is not 768 x 1024"
-    
-
-    if printing_parameters.amplitude == 0 and printing_parameters.phase == 0:
-        print()
-        return images.reshape(images.shape[0], -1)
-    
-    angles = np.linspace(0, 2 * np.pi, images.shape[0], endpoint=False)
-    
-    
-    print("\nApply wobbling correction:")
-    for i in tqdm.tqdm(range(images.shape[0])):
-        φ = angles[i]
-        shift_value = round(printing_parameters.amplitude * np.sin(φ + 
-                                                                 printing_parameters.phase / 360 * 2 * np.pi))
-        images[i, :, :] = np.roll(images[i, :, :], int(np.round(shift_value)), axis=0)
-    
-    print()
-    return images.reshape(images.shape[0], -1)
+    axis.stop()
+    axis.home()
+    return
 
 
 print(WELCOME)
+print("-------------------- 1/5 -------------------------------------")
 printing_parameters = process_arguments()
+print("-------------------- 2/5 -------------------------------------")
 images = load_images_and_correct_rotation_axis_wobbling(printing_parameters)
+print("-------------------- 3/5 -------------------------------------")
 dmd, num_of_images = initialize_DMD(images, printing_parameters)
+print("-------------------- 4/5 -------------------------------------")
 axis_stage = initialize_stage(printing_parameters, triggers_per_round=num_of_images)
+print("-------------------- 5/5 -------------------------------------")
 print_TVAM(axis_stage, dmd, printing_parameters)
