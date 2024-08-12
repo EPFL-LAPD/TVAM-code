@@ -269,6 +269,14 @@ def initialize_DMD(images, printing_parameters):
 
 
 def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
+
+    """
+    Shape images and apply wobbling/ordering/flip corrections
+    
+    Returns:
+        numpy array: 2D array where the first dimension is images
+    """
+    
     print("Start loading images into RAM.")
     filelist = os.listdir(printing_parameters.path)
     filelist = sorted(filelist)
@@ -303,7 +311,7 @@ def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
         φ = angles[i]
         shift_value = round(printing_parameters.amplitude * np.sin(φ + 
                                                                  printing_parameters.phase / 360 * 2 * np.pi))
-        images[i, :, :] = np.roll(images[i, :, :], shift_value, axis=0)
+        images[i, :, :] = np.roll(images[i, :, :], int(np.round(shift_value)), axis=0)
     
     print()
     return images.reshape(images.shape[0], -1)
