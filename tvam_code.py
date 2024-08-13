@@ -15,46 +15,32 @@ WELCOME = "\
 | $$/   \  $$|  $$$$$$$| $$|  $$$$$$$|  $$$$$$/| $$ | $$ | $$|  $$$$$$$ \n\
 |__/     \__/ \_______/|__/ \_______/ \______/ |__/ |__/ |__/ \_______/ \n\
                                                                         \n\
-   /$$                                                                  \n\
-  | $$                                                                  \n\
- /$$$$$$    /$$$$$$                                                     \n\
-|_  $$_/   /$$__  $$                                                    \n\
-  | $$    | $$  \ $$                                                    \n\
-  | $$ /$$| $$  | $$                                                    \n\
-  |  $$$$/|  $$$$$$/                                                    \n\
-   \___/   \______/                                                     \n\
-                                                                        \n\
- /$$        /$$$$$$  /$$$$$$$  /$$$$$$$                                 \n\
-| $$       /$$__  $$| $$__  $$| $$__  $$                                \n\
-| $$      | $$  \ $$| $$  \ $$| $$  \ $$                                \n\
-| $$      | $$$$$$$$| $$$$$$$/| $$  | $$                                \n\
-| $$      | $$__  $$| $$____/ | $$  | $$                                \n\
-| $$      | $$  | $$| $$      | $$  | $$                                \n\
-| $$$$$$$$| $$  | $$| $$      | $$$$$$$/                                \n\
-|________/|__/  |__/|__/      |_______/                                 \n\
+   /$$                     /$$        /$$$$$$  /$$$$$$$  /$$$$$$$       \n\
+  | $$                    | $$       /$$__  $$| $$__  $$| $$__  $$      \n\
+ /$$$$$$    /$$$$$$       | $$      | $$  \ $$| $$  \ $$| $$  \ $$      \n\
+|_  $$_/   /$$__  $$      | $$      | $$$$$$$$| $$$$$$$/| $$  | $$      \n\
+  | $$    | $$  \ $$      | $$      | $$__  $$| $$____/ | $$  | $$      \n\
+  | $$ /$$| $$  | $$      | $$      | $$  | $$| $$      | $$  | $$      \n\
+  |  $$$$/|  $$$$$$/      | $$$$$$$$| $$  | $$| $$      | $$$$$$$/      \n\
+   \___/   \______/       |________/|__/  |__/|__/      |_______/       \n\
 "
-
-
 
 
 
 from zaber_motion.ascii import Connection
 from zaber_motion import Units
-import time
 from zaber_motion.ascii import WarningFlags
-from tqdm import tqdm
+
 from ALP4 import *
 
-
+import time
+import tqdm
 import os
 import argparse
 import numpy as np
-from multiprocessing import Pool
-
-import tqdm
+import warnings
 from PIL import Image
-import os
-
+from colorama import Fore
 
 STAGE_ONE_TURN_STEPS = 384_000
 
@@ -78,6 +64,9 @@ def process_arguments():
     parser.add_argument('-n', '--num_turns', help="number of turns, default is 3",
                         action="store", type=int, default=3)
     
+    parser.add_argument('-d', '--duty_cycle', help="duty cycle",
+                        action="store", type=float, default=1.0)               
+                        
     parser.add_argument('-p', '--path', help="path to images, no default",
                         action="store")
     
@@ -96,12 +85,19 @@ def process_arguments():
     parser.add_argument('--flip_vertical', action='store_true', help="Flip vertical direction of DMD images.",
                         default=False)
  
-    args = parser.parse_args()
-    assert 0 < args.velocity <= 120, "Do not turn the stage too fast or too slow"
-    assert args.num_turns >= 1, "Do more than 0 rotations, only integer amount supported"
+    printing_parameters = parser.parse_args()
     
-    print("All args processed succesfully.\n")
-    return args
+    if printing_parameters.duty_cycle < 1:
+        print(Fore.RED + "### WARNING ###")
+        print(Fore.RED + "You are messing with the Duty cycle. The Duty cycle has known weird behaviour such as sudden jumps in intensity. Not recommended")
+        print(Fore.WHITE + " ")
+        
+    assert 0 < printing_parameters.duty_cycle <= 1.0, "Duty cycle has to be > 0 and smaller equal than 1"
+    assert 0 < printing_parameters.velocity <= 120, "Do not turn the stage too fast or too slow"
+    assert printing_parameters.num_turns >= 1, "Do more than 0 rotations, only integer amount supported"
+        
+    print("All printing parameters processed succesfully.\n")
+    return printing_parameters
 
     
 def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
@@ -162,7 +158,6 @@ def initialize_DMD(images, printing_parameters):
         tuple: The DMD object and number of images.
     """
 
-    
     # Load the Vialux .dll
     dmd = ALP4(version = '4.2')
     # Initialize the device
@@ -174,13 +169,16 @@ def initialize_DMD(images, printing_parameters):
     dmd.SeqPut(imgData = images)  
     frequency_image = printing_parameters.velocity / 360 * images.shape[0]
     pictureTime = (1 / frequency_image)
+    illuminationTime = pictureTime * printing_parameters.duty_cycle
     
+    max_ratio_duty_cycle = (1 / pictureTime) / 290 * 1.1
     assert (frequency_image < 290), ("DMD can only do 290Hz with 8Bit grayscale. Choose a lower velocity, you tried to do {:.1f}Hz".format(frequency_image))
-    
-    # we subtract 50µs, if pictureTime is longer than the time between two triggers, no new image is shown
-    
-    dmd.SetTiming(pictureTime = round(pictureTime * 1_000_000) - 300)
-    #dmd.SetTiming(pictureTime = round(100_000))
+    assert printing_parameters.duty_cycle > max_ratio_duty_cycle,\
+        "Duty cycle {} is lower than {:.3f} which breaks hardware limit of DMD".format(printing_parameters.duty_cycle, max_ratio_duty_cycle)
+        
+    # we subtract a small delta in µs, if pictureTime is longer than the time between two triggers, no new image is displayed
+    dmd.SetTiming(pictureTime = round(pictureTime * 1_000_000) - 100, illuminationTime=round(illuminationTime * 1_000_000) - 200)
+    #dmd.SetTiming(illuminationTime = round(100_000))
     dmd.ProjControl(ALP_PROJ_MODE, ALP_SLAVE)
     dmd.DevControl(ALP_TRIGGER_EDGE, ALP_EDGE_RISING)
     print("Done setting up DMD and images are loaded.\n")
@@ -209,7 +207,6 @@ def initialize_stage(printing_parameters, triggers_per_round=1000):
         
 
     # indicates the steps to turn one round on the stage")
-
     #Trigger 1 - Set digital output 1 == 1 when pos > 360°
     stage_handler.generic_command("system restore")
     # trigger when position >= 360°
@@ -218,18 +215,15 @@ def initialize_stage(printing_parameters, triggers_per_round=1000):
     stage_handler.generic_command('trigger 1 action a io set do 1 1')
     stage_handler.generic_command("trigger 1 enable")
     
-    
-    stage_handler.generic_command("trigger 3 when 1 pos < {}".format(STAGE_ONE_TURN_STEPS))
     # when it is below <360°, set trigger hard to 0
+    stage_handler.generic_command("trigger 3 when 1 pos < {}".format(STAGE_ONE_TURN_STEPS))
     stage_handler.generic_command('trigger 3 action a io set do 1 0') 
     stage_handler.generic_command("trigger 3 enable")
-    
     
     #Trigger 2 - toggle digital output 2 based on distance interval
     stage_handler.generic_command("trigger 2 when 1 dist {}".format(STAGE_ONE_TURN_STEPS // (2 * triggers_per_round)))
     stage_handler.generic_command("trigger 2 action a io set do 2 t")
     stage_handler.generic_command("trigger 2 enable")
-    
     
     stage_handler.generic_command("trigger 4 when 1 pos == 0")
     stage_handler.generic_command("trigger 4 action a io set do 2 1")
@@ -290,8 +284,9 @@ def print_TVAM(axis, dmd, printing_parameters):
     except KeyboardInterrupt:
         print("Keyboard interrupt. Homing stage and stop.")
         stop_dmd_stage(axis, dmd)
-    print("Print over, inspect sample")
-    
+    print("\nPrint over, inspect sample")
+    printing_time = 360 / printing_parameters.velocity * printing_parameters.num_turns
+    print("Total printing time {:.1f}s with duty cycle of {}.\n".format(printing_time, printing_parameters.duty_cycle))
     return
 
 
