@@ -33,6 +33,7 @@ from zaber_motion.ascii import WarningFlags
 
 from ALP4 import *
 
+import datetime
 import time
 import tqdm
 import os
@@ -84,13 +85,15 @@ def process_arguments():
 
     parser.add_argument('--flip_vertical', action='store_true', help="Flip vertical direction of DMD images.",
                         default=False)
+                        
+    parser.add_argument('--notes', action = 'store', help = "Write additional notes to printing log", type=str, default = "None")
  
     printing_parameters = parser.parse_args()
     
-    if printing_parameters.duty_cycle < 1:
-        print(Fore.RED + "### WARNING ###")
-        print(Fore.RED + "You are messing with the Duty cycle. The Duty cycle has known weird behaviour such as sudden jumps in intensity. Not recommended")
-        print(Fore.WHITE + " ")
+    #if printing_parameters.duty_cycle < 1:
+    #    print(Fore.RED + "### WARNING ###")
+    #    print(Fore.RED + "You are messing with the Duty cycle. The Duty cycle has known weird behaviour such as sudden jumps in intensity. Not recommended")
+    #    print(Fore.WHITE + " ")
         
     assert 0 < printing_parameters.duty_cycle <= 1.0, "Duty cycle has to be > 0 and smaller equal than 1"
     assert 0 < printing_parameters.velocity <= 120, "Do not turn the stage too fast or too slow"
@@ -98,6 +101,13 @@ def process_arguments():
         
     print("All printing parameters processed succesfully.\n")
     return printing_parameters
+
+def write_parameters(printing_parameters):
+    with open('printing_log.txt', 'a') as file1:
+        file1.write("\n" + str(datetime.datetime.now()))
+        iterable = vars(printing_parameters).items()
+        for parameter in iterable:
+            file1.write(" " + str(parameter))
 
     
 def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
@@ -171,14 +181,22 @@ def initialize_DMD(images, printing_parameters):
     pictureTime = (1 / frequency_image)
     illuminationTime = pictureTime * printing_parameters.duty_cycle
     
-    max_ratio_duty_cycle = (1 / pictureTime) / 290 * 1.1
+    # hardware specific parameter, minimum illumation time in µs
+    min_illumination_time = dmd.SeqInquire(ALP_MIN_ILLUMINATE_TIME)
     assert (frequency_image < 290), ("DMD can only do 290Hz with 8Bit grayscale. Choose a lower velocity, you tried to do {:.1f}Hz".format(frequency_image))
-    assert printing_parameters.duty_cycle > max_ratio_duty_cycle,\
-        "Duty cycle {} is lower than {:.3f} which breaks hardware limit of DMD".format(printing_parameters.duty_cycle, max_ratio_duty_cycle)
-        
+
     # we subtract a small delta in µs, if pictureTime is longer than the time between two triggers, no new image is displayed
-    dmd.SetTiming(pictureTime = round(pictureTime * 1_000_000) - 100, illuminationTime=round(illuminationTime * 1_000_000) - 200)
-    #dmd.SetTiming(illuminationTime = round(100_000))
+    required_delta_between_illumination_and_picture_time = (200 * (pictureTime - illuminationTime < 100e-6))
+    
+    # this is the timings we try to set on the DMD, we subtract some small deltas to be sure that trigger listens
+    pictureTimeDMD = round((pictureTime - 100e-6) * 1_000_000)
+    illuminationTimeDMD = round(illuminationTime * 1_000_000) - required_delta_between_illumination_and_picture_time
+    print(illuminationTimeDMD, min_illumination_time)
+    assert illuminationTimeDMD > min_illumination_time, \
+        "You tried to set an illuminationTime {:.0f}µs which is lower than the hardware limit {:.0f}µs. Try to increase duty_cycle".format(illuminationTimeDMD, min_illumination_time)
+    
+    print("illuminationTime on DMD is {:.0f}µs".format(illuminationTimeDMD))
+    dmd.SetTiming(pictureTime = pictureTimeDMD, illuminationTime=illuminationTimeDMD)
     dmd.ProjControl(ALP_PROJ_MODE, ALP_SLAVE)
     dmd.DevControl(ALP_TRIGGER_EDGE, ALP_EDGE_RISING)
     print("Done setting up DMD and images are loaded.\n")
@@ -312,11 +330,20 @@ def stop_dmd_stage(axis, dmd):
     axis.stop()
     axis.home()
     return
-
+    
+def write_result():
+    result = input("Please add your results ")
+    with open('printing_log.txt', 'a') as file1:
+        try:
+            file1.write(" Final results:" + " " + result)
+        except:
+            print("Please enclose your result in \" \"")
+            write_result()
 
 print(WELCOME)
 print("-------------------- 1/5 -------------------------------------")
 printing_parameters = process_arguments()
+write_parameters(printing_parameters)
 print("-------------------- 2/5 -------------------------------------")
 images = load_images_and_correct_rotation_axis_wobbling(printing_parameters)
 print("-------------------- 3/5 -------------------------------------")
@@ -325,3 +352,5 @@ print("-------------------- 4/5 -------------------------------------")
 axis_stage = initialize_stage(printing_parameters, triggers_per_round=num_of_images)
 print("-------------------- 5/5 -------------------------------------")
 print_TVAM(axis_stage, dmd, printing_parameters)
+write_result()
+    
