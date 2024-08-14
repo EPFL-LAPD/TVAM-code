@@ -200,7 +200,7 @@ def initialize_DMD(images, printing_parameters):
     dmd.ProjControl(ALP_PROJ_MODE, ALP_SLAVE)
     dmd.DevControl(ALP_TRIGGER_EDGE, ALP_EDGE_RISING)
     print("Done setting up DMD and images are loaded.\n")
-    return dmd, images.shape[0]
+    return dmd, images.shape[0], illuminationTimeDMD
 
 
 def initialize_stage(printing_parameters, triggers_per_round=1000):
@@ -331,9 +331,10 @@ def stop_dmd_stage(axis, dmd):
     axis.home()
     return
     
-def write_result():
+def write_result(illuminationTime):
     result = input("Please add your results ")
     with open('printing_log.txt', 'a') as file1:
+        file1.write(" IlluminationTime:" + " " + str(illuminationTime) + "µs")
         try:
             file1.write(" Final results:" + " " + result)
         except:
@@ -347,10 +348,10 @@ write_parameters(printing_parameters)
 print("-------------------- 2/5 -------------------------------------")
 images = load_images_and_correct_rotation_axis_wobbling(printing_parameters)
 print("-------------------- 3/5 -------------------------------------")
-dmd, num_of_images = initialize_DMD(images, printing_parameters)
+dmd, num_of_images, illuminationTime = initialize_DMD(images, printing_parameters)
 print("-------------------- 4/5 -------------------------------------")
 axis_stage = initialize_stage(printing_parameters, triggers_per_round=num_of_images)
 print("-------------------- 5/5 -------------------------------------")
 print_TVAM(axis_stage, dmd, printing_parameters)
-write_result()
+write_result(illuminationTime)
     
