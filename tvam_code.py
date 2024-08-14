@@ -178,20 +178,19 @@ def initialize_DMD(images, printing_parameters):
     print("We are loading {} images onto the DMD.".format(len(images)))
     dmd.SeqPut(imgData = images)  
     frequency_image = printing_parameters.velocity / 360 * images.shape[0]
-    pictureTime = (1 / frequency_image)
-    illuminationTime = pictureTime * printing_parameters.duty_cycle
+    # this is the timings we try to set on the DMD, we subtract some small deltas to be sure that trigger listens
+    pictureTime = (1 / frequency_image) - 100e-6
+    # DMD requires that there is a small delta between pictureTime and illuminationTime
+    illuminationTime = (pictureTime - 100e-6) * printing_parameters.duty_cycle
     
     # hardware specific parameter, minimum illumation time in µs
     min_illumination_time = dmd.SeqInquire(ALP_MIN_ILLUMINATE_TIME)
     assert (frequency_image < 290), ("DMD can only do 290Hz with 8Bit grayscale. Choose a lower velocity, you tried to do {:.1f}Hz".format(frequency_image))
-
-    # we subtract a small delta in µs, if pictureTime is longer than the time between two triggers, no new image is displayed
-    required_delta_between_illumination_and_picture_time = (200 * (pictureTime - illuminationTime < 100e-6))
     
-    # this is the timings we try to set on the DMD, we subtract some small deltas to be sure that trigger listens
-    pictureTimeDMD = round((pictureTime - 100e-6) * 1_000_000)
-    illuminationTimeDMD = round(illuminationTime * 1_000_000) - required_delta_between_illumination_and_picture_time
-    print(illuminationTimeDMD, min_illumination_time)
+    # in µs
+    pictureTimeDMD = round(pictureTime * 1_000_000)
+    # in µs
+    illuminationTimeDMD = round(illuminationTime * 1_000_000)
     assert illuminationTimeDMD > min_illumination_time, \
         "You tried to set an illuminationTime {:.0f}µs which is lower than the hardware limit {:.0f}µs. Try to increase duty_cycle".format(illuminationTimeDMD, min_illumination_time)
     
