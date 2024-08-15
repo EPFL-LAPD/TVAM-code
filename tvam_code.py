@@ -44,7 +44,7 @@ from PIL import Image
 from colorama import Fore
 
 STAGE_ONE_TURN_STEPS = 384_000
-
+MAX_FREQUENCY_DMD_GRAYSCALE_8BIT = 290
 
 
 def process_arguments():
@@ -185,7 +185,7 @@ def initialize_DMD(images, printing_parameters):
     
     # hardware specific parameter, minimum illumation time in µs
     min_illumination_time = dmd.SeqInquire(ALP_MIN_ILLUMINATE_TIME)
-    assert (frequency_image < 290), ("DMD can only do 290Hz with 8Bit grayscale. Choose a lower velocity, you tried to do {:.1f}Hz".format(frequency_image))
+    assert (frequency_image < MAX_FREQUENCY_DMD_GRAYSCALE_8BIT), ("DMD can only do {}Hz with 8Bit grayscale. Choose a lower velocity, you tried to do {:.1f}Hz".format(MAX_FREQUENCY_DMD_GRAYSCALE_8BIT, frequency_image))
     
     # in µs
     pictureTimeDMD = round(pictureTime * 1_000_000)
