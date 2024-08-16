@@ -43,7 +43,7 @@ import warnings
 from PIL import Image
 from colorama import Fore
 
-#STAGE_ONE_TURN_STEPS = 384_000
+# this assumes our DMD model and grayscale, otherwise this number might change
 MAX_FREQUENCY_DMD_GRAYSCALE_8BIT = 290
 
 
@@ -90,10 +90,6 @@ def process_arguments():
  
     printing_parameters = parser.parse_args()
     
-    #if printing_parameters.duty_cycle < 1:
-    #    print(Fore.RED + "### WARNING ###")
-    #    print(Fore.RED + "You are messing with the Duty cycle. The Duty cycle has known weird behaviour such as sudden jumps in intensity. Not recommended")
-    #    print(Fore.WHITE + " ")
         
     assert 0 < printing_parameters.duty_cycle <= 1.0, "Duty cycle has to be > 0 and smaller equal than 1"
     assert 0 < printing_parameters.velocity <= 120, "Do not turn the stage too fast or too slow"
@@ -221,12 +217,12 @@ def initialize_stage(printing_parameters, triggers_per_round=1000):
 
     stage_handler = Connection.open_serial_port(printing_parameters.port_stage)
     
+    # the number of steps for one 360° rotation
     STAGE_ONE_TURN_STEPS = int(stage_handler.generic_command("get limit.cycle.dist").data)
     
     assert ((STAGE_ONE_TURN_STEPS % (2 * triggers_per_round)) == 0), "{} has to be divisible by 2 * {}".format(STAGE_ONE_TURN_STEPS, triggers_per_round)
     
         
-
     # indicates the steps to turn one round on the stage")
     #Trigger 1 - Set digital output 1 == 1 when pos > 360°
     stage_handler.generic_command("system restore")
@@ -345,17 +341,25 @@ def write_result(illuminationTime):
             print("Please enclose your result in \" \"")
             write_result()
 
-print(WELCOME)
-print("-------------------- 1/5 -------------------------------------")
-printing_parameters = process_arguments()
-write_parameters(printing_parameters)
-print("-------------------- 2/5 -------------------------------------")
-images = load_images_and_correct_rotation_axis_wobbling(printing_parameters)
-print("-------------------- 3/5 -------------------------------------")
-dmd, num_of_images, illuminationTime = initialize_DMD(images, printing_parameters)
-print("-------------------- 4/5 -------------------------------------")
-axis_stage, STAGE_ONE_TURN_STEPS = initialize_stage(printing_parameters, triggers_per_round=num_of_images)
-print("-------------------- 5/5 -------------------------------------")
-print_TVAM(axis_stage, dmd, printing_parameters, STAGE_ONE_TURN_STEPS)
-write_result(illuminationTime)
+
+def main():
+    print(WELCOME)
+    print("-------------------- 1/5 -------------------------------------")
+    printing_parameters = process_arguments()
+    write_parameters(printing_parameters)
+    print("-------------------- 2/5 -------------------------------------")
+    images = load_images_and_correct_rotation_axis_wobbling(printing_parameters)
+    print("-------------------- 3/5 -------------------------------------")
+    dmd, num_of_images, illuminationTime = initialize_DMD(images, printing_parameters)
+    print("-------------------- 4/5 -------------------------------------")
+    axis_stage, STAGE_ONE_TURN_STEPS = initialize_stage(printing_parameters, triggers_per_round=num_of_images)
+    print("-------------------- 5/5 -------------------------------------")
+    print_TVAM(axis_stage, dmd, printing_parameters, STAGE_ONE_TURN_STEPS)
+    write_result(illuminationTime)
+    
+    
+    
+if __name__ == "__main__":
+    main()
+
     
