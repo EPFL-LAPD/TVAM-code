@@ -43,7 +43,7 @@ import warnings
 from PIL import Image
 from colorama import Fore
 
-STAGE_ONE_TURN_STEPS = 384_000
+#STAGE_ONE_TURN_STEPS = 384_000
 MAX_FREQUENCY_DMD_GRAYSCALE_8BIT = 290
 
 
@@ -215,11 +215,15 @@ def initialize_stage(printing_parameters, triggers_per_round=1000):
        axis: The axis object of the stage.
    """
    
+    
+   
     print("Initialize stage, initialize triggers and reset triggers to 0\n")
 
-    assert ((STAGE_ONE_TURN_STEPS % (2 * triggers_per_round)) == 0), "{} has to be divisible by 2 * {}".format(STAGE_ONE_TURN_STEPS, triggers_per_round)
-
     stage_handler = Connection.open_serial_port(printing_parameters.port_stage)
+    
+    STAGE_ONE_TURN_STEPS = int(stage_handler.generic_command("get limit.cycle.dist").data)
+    
+    assert ((STAGE_ONE_TURN_STEPS % (2 * triggers_per_round)) == 0), "{} has to be divisible by 2 * {}".format(STAGE_ONE_TURN_STEPS, triggers_per_round)
     
         
 
@@ -257,12 +261,13 @@ def initialize_stage(printing_parameters, triggers_per_round=1000):
     else:
         temperature = stage_handler.generic_command("get driver.temperature").data
         print("The current temperature of the stage is {} °C\nIt is recommended that the temperature is below 80 °C\n".format(temperature))
+        
+  
     
-    
-    return axis
+    return axis, STAGE_ONE_TURN_STEPS
     
 
-def print_TVAM(axis, dmd, printing_parameters):
+def print_TVAM(axis, dmd, printing_parameters, STAGE_ONE_TURN_STEPS):
     
     """
    Print using the TVAM process.
@@ -349,8 +354,8 @@ images = load_images_and_correct_rotation_axis_wobbling(printing_parameters)
 print("-------------------- 3/5 -------------------------------------")
 dmd, num_of_images, illuminationTime = initialize_DMD(images, printing_parameters)
 print("-------------------- 4/5 -------------------------------------")
-axis_stage = initialize_stage(printing_parameters, triggers_per_round=num_of_images)
+axis_stage, STAGE_ONE_TURN_STEPS = initialize_stage(printing_parameters, triggers_per_round=num_of_images)
 print("-------------------- 5/5 -------------------------------------")
-print_TVAM(axis_stage, dmd, printing_parameters)
+print_TVAM(axis_stage, dmd, printing_parameters, STAGE_ONE_TURN_STEPS)
 write_result(illuminationTime)
     
