@@ -2,7 +2,7 @@
 """
 Created on Wed Jun 19 15:21:28 2024
 
-@author: adminlapd
+@author: Felix Wechsler (roflmaostc), Gordon Su (dataricerunner)
 """
 
 WELCOME = "\
