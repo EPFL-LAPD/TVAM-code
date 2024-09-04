@@ -36,6 +36,12 @@ The lasers are not triggered, they are just always on. But since the DMD is off 
 We are using [this library](https://github.com/wavefrontshaping/ALP4lib). Check regularly for updates. 
 
 
+# Simply checks
+To check that everything is functional, you can call:
+* ` python .\tvam_code.py -p .\images_10\ -n 15 -ph 70 -a 12 -v 50`
+* Check with the camera from behind (USB one) to see if the 10 numbers appear regularly. When the illumination stops, it should stop at 9!
+* If it doesn't look regular or does not stop at the 9, something is broken
+
 
 ## Zaber
 ### Stage
