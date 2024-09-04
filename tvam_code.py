@@ -175,9 +175,9 @@ def initialize_DMD(images, printing_parameters):
     dmd.SeqPut(imgData = images)  
     frequency_image = printing_parameters.velocity / 360 * images.shape[0]
     # this is the timings we try to set on the DMD, we subtract some small deltas to be sure that trigger listens
-    pictureTime = (1 / frequency_image) - 100e-6
+    pictureTime = ((1 / frequency_image) - 200e-6)
     # DMD requires that there is a small delta between pictureTime and illuminationTime
-    illuminationTime = (pictureTime - 100e-6) * printing_parameters.duty_cycle
+    illuminationTime = (pictureTime - 200e-6) * printing_parameters.duty_cycle
     
     # hardware specific parameter, minimum illumation time in µs
     min_illumination_time = dmd.SeqInquire(ALP_MIN_ILLUMINATE_TIME)
