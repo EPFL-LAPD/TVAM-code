@@ -60,12 +60,12 @@ def process_arguments():
     parser = argparse.ArgumentParser(description='Optional app description')
     
     parser.add_argument('-v', '--velocity', help="rotation speed in deg/sec, default is 60.0",
-                        action="store", type=float, default=60.0)
+                        action="store", type=float, default=40.0)
      
     parser.add_argument('-n', '--num_turns', help="number of turns, default is 3",
                         action="store", type=int, default=3)
     
-    parser.add_argument('-d', '--duty_cycle', help="duty cycle",
+    parser.add_argument('-d', '--duty_cycle', help="duty cycle. This is a factor which reduces the global intensity of all images. This can be used to fine tune the intensity. The duty cycle has a lower limit how little the intensity can be. This depends on the image rate of the DMD.",
                         action="store", type=float, default=1.0)               
                         
     parser.add_argument('-p', '--path', help="path to images, no default",
@@ -90,7 +90,8 @@ def process_arguments():
  
     printing_parameters = parser.parse_args()
     
-        
+       
+    # just some sanity checks
     assert 0 < printing_parameters.duty_cycle <= 1.0, "Duty cycle has to be > 0 and smaller equal than 1"
     assert 0 < printing_parameters.velocity <= 120, "Do not turn the stage too fast or too slow"
     assert printing_parameters.num_turns >= 1, "Do more than 0 rotations, only integer amount supported"
@@ -98,6 +99,7 @@ def process_arguments():
     print("All printing parameters processed succesfully.\n")
     return printing_parameters
 
+# this function is called to store the log file
 def write_parameters(printing_parameters):
     with open('printing_log.txt', 'a') as file1:
         file1.write("\n" + str(datetime.datetime.now()))
@@ -141,9 +143,10 @@ def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
         print()
         return images.reshape(images.shape[0], -1)
     
+    # endpoint=False is important! Other 0° and 360° (which is the same) are both included
     angles = np.linspace(0, 2 * np.pi, images.shape[0], endpoint=False)
     
-    
+    # wobbling correction is done by integer shifts of the image
     print("\nApply wobbling correction:")
     for i in tqdm.tqdm(range(images.shape[0])):
         φ = angles[i]
@@ -168,15 +171,17 @@ def initialize_DMD(images, printing_parameters):
     dmd = ALP4(version = '4.2')
     # Initialize the device
     dmd.Initialize()
-
+    # allocate a sequence on the DMD
     dmd.SeqAlloc(nbImg = images.shape[0], bitDepth = 8)
     # Send the image sequence as a 1D list/array/numpy array
     print("We are loading {} images onto the DMD.".format(len(images)))
-    dmd.SeqPut(imgData = images)  
+    dmd.SeqPut(imgData = images)
+    # how many images per seconds are required
     frequency_image = printing_parameters.velocity / 360 * images.shape[0]
-    # this is the timings we try to set on the DMD, we subtract some small deltas to be sure that trigger listens
+    # this is the timings we try to set on the DMD, we subtract some small deltas to be sure that trigger listens. This delta is required
+    # check the manual. The manual of the DMD says at least ~80µs. Just be sure with 200µs
     pictureTime = ((1 / frequency_image) - 200e-6)
-    # DMD requires that there is a small delta between pictureTime and illuminationTime
+    # DMD requires that there is a small delta between pictureTime and illuminationTime. Same again here
     illuminationTime = (pictureTime - 200e-6) * printing_parameters.duty_cycle
     
     # hardware specific parameter, minimum illumation time in µs
@@ -191,21 +196,28 @@ def initialize_DMD(images, printing_parameters):
         "You tried to set an illuminationTime {:.0f}µs which is lower than the hardware limit {:.0f}µs. Try to increase duty_cycle".format(illuminationTimeDMD, min_illumination_time)
     
     print("illuminationTime on DMD is {:.0f}µs".format(illuminationTimeDMD))
+    # important call. pictureTime is the total time of each picture. illuminationTime is how long the image is on. Almost the same
+    # just a small delta difference -> see manual
     dmd.SetTiming(pictureTime = pictureTimeDMD, illuminationTime=illuminationTimeDMD)
+    # set stage to be slave
     dmd.ProjControl(ALP_PROJ_MODE, ALP_SLAVE)
+    # DMD should listen to a rising edge of the trigger
     dmd.DevControl(ALP_TRIGGER_EDGE, ALP_EDGE_RISING)
     print("Done setting up DMD and images are loaded.\n")
     return dmd, images.shape[0], illuminationTimeDMD
 
 
-def initialize_stage(printing_parameters, triggers_per_round=1000):
+def initialize_stage(printing_parameters, triggers_per_round):
    
     """
-   Initialize the stage and set up triggers.
+   Initialize the stage and set up triggers. There are two triggers. One just is on, once the stage did one full round of turning.
+   The second triggers always toggles at a frequency which is the frequency we want to display the images.
+   Those two output triggers go to an Arduino which does the logical AND of those two. 
+   Then the triggers goes into the DMD
 
    Args:
        printing_parameters (argparse.fstage Namespace): Parsed command-line arguments.
-       triggers_per_round (int): Number of triggers per round, default is 1000.
+       triggers_per_round (int): Number of triggers per round.
 
    Returns:
        axis: The axis object of the stage.
@@ -213,22 +225,21 @@ def initialize_stage(printing_parameters, triggers_per_round=1000):
    
     
    
-    print("Initialize stage, initialize triggers and reset triggers to 0\n")
+    print("Initialize stage, set triggers and initialize triggers.\n")
 
     stage_handler = Connection.open_serial_port(printing_parameters.port_stage)
     
     # the number of steps for one 360° rotation
     STAGE_ONE_TURN_STEPS = int(stage_handler.generic_command("get limit.cycle.dist").data)
     
-    assert ((STAGE_ONE_TURN_STEPS % (2 * triggers_per_round)) == 0), "{} has to be divisible by 2 * {}".format(STAGE_ONE_TURN_STEPS, triggers_per_round)
+    # assert check. Since the stage can fire the trigger only at certain integer steps, we need to be sure by that.
+    assert ((STAGE_ONE_TURN_STEPS % (2 * triggers_per_round)) == 0), "{} has to be divisible by 2 * {}. The first number is the integer steps of the stage. The second number is the number of images.".format(STAGE_ONE_TURN_STEPS, triggers_per_round)
     
         
     # indicates the steps to turn one round on the stage")
     #Trigger 1 - Set digital output 1 == 1 when pos > 360°
     stage_handler.generic_command("system restore")
-    # trigger when position >= 360°
     stage_handler.generic_command("trigger 1 when 1 pos >= {}".format(STAGE_ONE_TURN_STEPS))
-    #set digital output 1 to 1
     stage_handler.generic_command('trigger 1 action a io set do 1 1')
     stage_handler.generic_command("trigger 1 enable")
     
@@ -242,15 +253,18 @@ def initialize_stage(printing_parameters, triggers_per_round=1000):
     stage_handler.generic_command("trigger 2 action a io set do 2 t")
     stage_handler.generic_command("trigger 2 enable")
     
+    # set in the beginning hard to 1
     stage_handler.generic_command("trigger 4 when 1 pos == 0")
     stage_handler.generic_command("trigger 4 action a io set do 2 1")
     stage_handler.generic_command("trigger 4 enable")
     
+    # find the correct axis
     device_list = stage_handler.detect_devices()
     device = device_list[0]
     axis = device.get_axis(1)
     axis.home()
     
+    # check temperature
     warning_flags = axis.warnings.get_flags()
     if WarningFlags.CONTROLLER_TEMPERATURE_HIGH in warning_flags:
         print("Device is overheating!")
@@ -274,15 +288,18 @@ def print_TVAM(axis, dmd, printing_parameters, STAGE_ONE_TURN_STEPS):
        printing_parameters (argparse.Namespace): Parsed command-line arguments.
    """
     #axis.move_velocity(printing_parameters.velocity, unit=Units.ANGULAR_VELOCITY_DEGREES_PER_SECOND)
-
+    # turn DMD on, now it will listen to triggers
     dmd.Run()
 
-    # move stage to an absolute position, this command is non-block, so it moves to the next line
+    # move stage to an absolute position, this command is non-block, so it moves to the next python line
     axis.move_absolute(STAGE_ONE_TURN_STEPS * (printing_parameters.num_turns + 1) - 1, Units.NATIVE, 
                        False, 
                        printing_parameters.velocity, Units.ANGULAR_VELOCITY_DEGREES_PER_SECOND)
-        
+       
+    # let the bar monitor the print. Effectively this code is just for inspection, the stage turns and sends triggers which the DMD listens  to
+    # so everything is synchronized by the stage and not this code.
     try:
+        # warm up round
         position = axis.get_position(unit=Units.NATIVE)
         with tqdm.tqdm(total = 360, desc = "Acceleratinggggg, print after 360°", bar_format= '{l_bar}{bar}{r_bar}') as pbar:
             while position < STAGE_ONE_TURN_STEPS:
@@ -291,14 +308,14 @@ def print_TVAM(axis, dmd, printing_parameters, STAGE_ONE_TURN_STEPS):
                     pbar.update(int(position / STAGE_ONE_TURN_STEPS * 360) - pbar.n)
         
         
-
+        # now the print is really on
         with tqdm.tqdm(total = 360 * printing_parameters.num_turns, desc = "Printinggggg", bar_format= '{l_bar}{bar}{r_bar}') as pbar:
             while position < STAGE_ONE_TURN_STEPS * (1 + printing_parameters.num_turns) - 1:
                 position = axis.get_position(unit=Units.NATIVE)
                 pbar.update(int(position / STAGE_ONE_TURN_STEPS * 360) - pbar.n - 360)
                 
         stop_dmd_stage(axis, dmd)
-
+    # just some interrupt handling
     except KeyboardInterrupt:
         print("Keyboard interrupt. Homing stage and stop.")
         stop_dmd_stage(axis, dmd)
@@ -342,6 +359,7 @@ def write_result(illuminationTime):
             write_result()
 
 
+# put pieces together
 def main():
     print(WELCOME)
     print("-------------------- 1/5 -------------------------------------")
