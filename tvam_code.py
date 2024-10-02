@@ -64,7 +64,7 @@ import numpy as np
 import warnings
 from PIL import Image
 from colorama import Fore
-
+import cv2
 # this assumes our DMD model and grayscale, otherwise this number might change
 MAX_FREQUENCY_DMD_GRAYSCALE_8BIT = 290
 
@@ -108,6 +108,9 @@ def process_arguments():
     parser.add_argument('--flip_vertical', action='store_true', help="Flip vertical direction of DMD images.",
                         default=False)
                         
+    parser.add_argument('--flip_horizontal', action='store_true', help="Flip horizontal direction of DMD images.",
+                        default=False)
+                        
     parser.add_argument('--notes', action = 'store', help = "Write additional notes to printing log", type=str, default = "None")
  
     printing_parameters = parser.parse_args()
@@ -129,7 +132,11 @@ def write_parameters(printing_parameters):
         for parameter in iterable:
             file1.write(" " + str(parameter))
 
+
     
+def open_exr(filepath):
+    return cv2.imread(filepath,  cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)  
+        
 def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
 
     """
@@ -140,16 +147,30 @@ def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
     """
     
     print("Start loading images into RAM.")
-    filelist = os.listdir(printing_parameters.path)
-    filelist = sorted(filelist)
-    images = []
-    for i in tqdm.tqdm(filelist):
-        image = os.path.join(printing_parameters.path, i)
-        images.append(np.asarray(Image.open(image).convert('L')))
-        
-    print("The detected image shape is {}".format(images[0].shape))
     
-    images = np.array(images)
+    if printing_parameters.path.endswith(".npz"):
+        print("Loading patterns from compressed .npz file.")
+        images = np.load(printing_parameters.path)["patterns"]
+    else:
+        filelist = os.listdir(printing_parameters.path)
+        filelist = sorted(filelist)
+        print("Loading patterns from folder of images")
+        images = []
+        for i in tqdm.tqdm(filelist):
+            image = os.path.join(printing_parameters.path, i)
+            if os.path.splitext(image)[-1] == ".exr":
+                images.append(open_exr(image))
+            else:
+                images.append(np.asarray(Image.open(image).convert('L')))
+
+        print("The detected image shape is {}".format(images[0].shape))
+        
+        images = np.array(images)
+    
+    if images.shape[1] == 1024 and images.shape[2] == 768:
+        print("It was detected that the images have shape 1024x768. Let's do the transpose to have alignment on DMD correctly")
+        images = np.swapaxes(images, 2, 1)
+    
     if printing_parameters.reverse_angles:
         print("Reverse angular order images")
         images = images[::-1, :, :]
@@ -157,10 +178,18 @@ def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
     if printing_parameters.flip_vertical:
         print("Flip vertical axis of images.")
         images = images[:, :, ::-1]
-
-    assert (images.shape[1] == 768 and images.shape[2] == 1024), "Image size is not 768 x 1024"
+        
+    if printing_parameters.flip_horizontal:
+        print("Flip horizontal axis of images.")
+        images = images[:, ::-1, :]
     
 
+    
+    images = images / np.max(images) * 255
+    assert (images.shape[1] == 768 and images.shape[2] == 1024), "Image size is not 768 x 1024"
+    
+    
+    
     if printing_parameters.amplitude == 0 and printing_parameters.phase == 0:
         print()
         return images.reshape(images.shape[0], -1)
