@@ -65,6 +65,7 @@ import warnings
 from PIL import Image
 from colorama import Fore
 import cv2
+
 # this assumes our DMD model and grayscale, otherwise this number might change
 MAX_FREQUENCY_DMD_GRAYSCALE_8BIT = 290
 
