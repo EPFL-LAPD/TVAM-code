@@ -3,11 +3,14 @@
 ## Full help
 ```
 -h, --help            					show this help message and exit
+-p PATH_OR_NPZ_FILE, --path PATH_OR_NPZ_FILE            path to images, no default. This can be either a folder containing images (such as .png or
+                                                        .erf). But also a path to a compressed numpy file (.npz) is possible. Compressed numpy expects
+                                                        a 3D array of shape (ANGLES X WIDTH X HEIGHT).
 -v VELOCITY, 		--velocity VELOCITY  		rotation speed in deg/sec, default is 60.0
 -n NUM_TURNS, 		--num_turns NUM_TURNS 		number of turns, default is 3
 -d DUTY_CYCLE, 		--duty_cycle DUTY_CYCLE 	This is a factor which reduces the global intensity of all images. This can be used to fine tune the intensity.
 							The duty cycle has a lower limit how little the intensity can be. This depends on the image rate of the DMD
--ps PORT_STAGE, 	--port_stage PORT_STAGE 	port of the stage, default is "COM4"
+-ps PORT_STAGE, 	--port_stage PORT_STAGE 	port of the stage, default is "COM6"
 -a AMPLITUDE, 		--amplitude AMPLITUDE 		Amplitude of the sinusoidal wobble in DMD pixel,default 0.
 -ph PHASE, 		--phase PHASE 			Phase shift of the sinusoidal wobble in degrees, default 0.
 --reverse_angles  					Reverse the angle, equivalent to rotating reverse direction

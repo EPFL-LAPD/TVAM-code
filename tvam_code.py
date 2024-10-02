@@ -92,11 +92,11 @@ def process_arguments():
     parser.add_argument('-d', '--duty_cycle', help="duty cycle. This is a factor which reduces the global intensity of all images. This can be used to fine tune the intensity. The duty cycle has a lower limit how little the intensity can be. This depends on the image rate of the DMD.",
                         action="store", type=float, default=1.0)               
                         
-    parser.add_argument('-p', '--path', help="path to images, no default",
+    parser.add_argument('-p', '--path', help="path to images, no default. This can be either a folder containing images (such as .png or .erf). But also a path to a compressed numpy file (.npz) is possible. Compressed numpy expects a 3D array of shape (ANGLES X WIDTH X HEIGHT).",
                         action="store")
     
     parser.add_argument('-ps', '--port_stage', help="port of the stage, default is \"COM4\"",
-                        action="store", type=str, default="COM4")
+                        action="store", type=str, default="COM6")
     
     parser.add_argument('-a', '--amplitude', help="Amplitude of the sinusoidal wobble in DMD pixel, default 0.", 
                         action = "store", type=float, default = 0)
