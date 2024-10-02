@@ -1,10 +1,4 @@
-# Usage (old lab PC)
-* Start **Anaconda Powershell Prompt**
-* Use the base Python environment
-* `cd .\Documents\TVAM-code\`
-* Call `python .\tvam_code.py --help` to see the help
-* A typical call is: `python .\tvam_code.py -p D:\PrintingPython\Printing_GelMA\ComplexAcinus\Patterns60deg_tilted_up\  -n 8 -ph 70 -a 12 -v 40 --flip_vertical -d 0.8`
-* The script logs all calls into `printing_log` such that all prints with all parameters and additional notes are saved with timestamps
+# README for Control software of TVAM printer
 
 ## Full help
 ```
@@ -18,6 +12,7 @@
 -ph PHASE, 		--phase PHASE 			Phase shift of the sinusoidal wobble in degrees, default 0.
 --reverse_angles  					Reverse the angle, equivalent to rotating reverse direction
 --flip_vertical       				        Flip vertical direction of DMD images.
+--flip_horizontal					Flip horizontal direction of DMD images.		
 --notes NOTES    					Write additional notes to printing log  
 ```
 
@@ -42,7 +37,6 @@ To check that everything is functional, you can call:
 * Check with the camera from behind (USB one) to see if the 10 numbers appear regularly. When the illumination stops, it should stop at 9!
 * If it doesn't look regular or does not stop at the 9, something is broken
 
-
 ## Zaber
 ### Stage
 We use the Zaber X-RSW60C stage.
@@ -54,7 +48,21 @@ fire once every given interval to signal to the DMD to change its image projecti
 
 
 
+# Usage (old lab PC)
+* Start **Anaconda Powershell Prompt**
+* Use the base Python environment
+* `cd .\Documents\TVAM-code\`
+* Call `python .\tvam_code.py --help` to see the help
+* A typical call is: `python .\tvam_code.py -p D:\PrintingPython\Printing_GelMA\ComplexAcinus\Patterns60deg_tilted_up\  -n 8 -ph 70 -a 12 -v 40 --flip_vertical -d 0.8`
+* The script logs all calls into `printing_log` such that all prints with all parameters and additional notes are saved with timestamps
 
+# Usage (new lab PC, since 2.10.2024)
+* Start **Anaconda Powershell Prompt**
+* Use the base Python environment
+* `cd .\TVAM-code\`
+* Call `python .\tvam_code.py --help` to see the help
+* A typical call is: `python .\tvam_code.py -p D:\PrintingPython\Printing_GelMA\ComplexAcinus\Patterns60deg_tilted_up\  -n 8 -ph 70 -a 12 -v 40 --flip_vertical -d 0.8`
+* The script logs all calls into `printing_log` such that all prints with all parameters and additional notes are saved with timestamps
 
 
 
