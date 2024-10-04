@@ -175,7 +175,7 @@ def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
     
     if printing_parameters.reverse_angles:
         print("Reverse angular order images")
-        # from [0,1,2,3] to [0,3,2,3]
+        # from [0,1,2,3] to [0,3,2,1]
         # but we preserve that the first image is still the 0° pattern.
         # matters for certain geometries (such as square!)
         images = np.roll(images[::-1, :, :], 1, axis=0)
