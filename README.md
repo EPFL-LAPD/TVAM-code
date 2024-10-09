@@ -36,7 +36,7 @@ We are using [this library](https://github.com/wavefrontshaping/ALP4lib). Check 
 
 # Simply checks
 To check that everything is functional, you can call:
-* ` python .\tvam_code.py -p .\images_10\ -n 15 -ph 70 -a 12 -v 50`
+* ` python .\tvam_code.py -p .\images_10\ -n 15 -ph 78 -a 11 -v 50 --flip_vertical`
 * Check with the camera from behind (USB one) to see if the 10 numbers appear regularly. When the illumination stops, it should stop at 9!
 * If it doesn't look regular or does not stop at the 9, something is broken
 
@@ -67,12 +67,16 @@ fire once every given interval to signal to the DMD to change its image projecti
 * A typical call is: `python .\tvam_code.py -p D:\PrintingPython\Printing_GelMA\ComplexAcinus\Patterns60deg_tilted_up\  -n 8 -ph 70 -a 12 -v 40 --flip_vertical -d 0.8`
 * The script logs all calls into `printing_log` such that all prints with all parameters and additional notes are saved with timestamps
 
+# Usage with Mitsuba
+* Mitsuba has the patterns flipped upside down. So use `--flip_vertical` and you should be good to go. The turning convention should already match (after the transpose we do in the code already. Mitsuba exports height and width of the images flipped compared to our code).
+* To check the rotation direction convention, use the square vials. In those patterns the rotation direction is intuitive to understand.
+
 
 # Steps to prepare good printing condition
 * Turn Laser Sign on
 * Turn lasers diodes on (top two). Put them in manual mode and increase current to 2x500mA each.
 * Turn ALP software on. Initialize DMD. Put white test pattern. Check with the camera from behind that DMD is illuminated homogenously. Otherwise adjust fibre outcoupling lens.
-* Check wobble. For that insert the metal tip and observe with the camera from behind. Run `python tvam_code.py -D images_line\ -n 5 -a 12 -ph 70`. Adapt values of amplitude and phase of the script such that the tip follows the center line. Also adapt the center position with the micrometer screw in the setup.
+* Check wobble. For that insert the metal tip and observe with the camera from behind. Run `python tvam_code.py -D images_line\ -n 10 -a 11 -ph 77`. Adapt values of amplitude and phase of the script such that the tip follows the center line. Also adapt the center position with the micrometer screw in the setup.
 * Now you are ready to go. Just give it a test run with your patterns and check if everything looks good.
 * If your printing results are weird. Try `--flip_horizontal` OR `--reverse_angles`. The rotation direction in TVAM makes a difference so maybe your turning convention of the patterns is just the wrong one. There is two choices. Best way to find out, is just to look at the printed results. If the sample is asymmetric, it will make a difference!
 
