@@ -228,6 +228,13 @@ def initialize_DMD(images, printing_parameters):
     dmd = ALP4(version = '4.2')
     # Initialize the device
     dmd.Initialize()
+
+    print("Temperature checks:")
+    for T, B in zip([ALP_DDC_FPGA_TEMPERATURE, ALP_APPS_FPGA_TEMPERATURE, ALP_PCB_TEMPERATURE],
+                    ["DDC FPGAs Temperature Diode", "Application FPGAs Temperature Diode", "Board temperature"]):
+        print("\tTemperature of {} is: {:.1f}°C".format(B, dmd.DevInquire(T) / 256))
+
+
     # allocate a sequence on the DMD
     dmd.SeqAlloc(nbImg = images.shape[0], bitDepth = 8)
     # Send the image sequence as a 1D list/array/numpy array
@@ -418,7 +425,8 @@ def write_result(illuminationTime):
 
 # put pieces together
 def main():
-    print(WELCOME)
+    #print(WELCOME)
+    print("")
     print("-------------------- 1/5 -------------------------------------")
     printing_parameters = process_arguments()
     write_parameters(printing_parameters)
