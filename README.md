@@ -1,5 +1,13 @@
 # README for Control software of TVAM printer
 
+## Installation
+Install drivers for ALP DMD first.
+Get a Python version and run:
+```python
+pip install numpy opencv-python pillow tqdm ALP4lib
+```
+
+
 ## Full help
 ```
 -h, --help            					show this help message and exit
