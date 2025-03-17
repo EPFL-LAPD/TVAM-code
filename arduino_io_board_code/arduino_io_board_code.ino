@@ -5,7 +5,7 @@ Additionally it displayes the current inputs and outputs everytime a change occu
 
 const int inputPin1 = 2;  // Define the pin for the first input signal
 const int inputPin2 = 3;  // Define the pin for the second input signal
-const int outputPin = 13; // Define the pin for the output signal 
+const int outputPin = 5; // Define the pin for the output signal 
 void setup() {
   pinMode(inputPin1, INPUT);  // Set the first input pin as an input
   pinMode(inputPin2, INPUT);  // Set the second input pin as an input
@@ -32,14 +32,6 @@ void loop() {
       digitalWrite(outputPin, LOW);
     }
 
-
-    //Serial.print("Signal1 : ");
-    //Serial.println(signal1);
-    //Serial.print("Signal2 : ");
-    //Serial.println(signal2);
-    //Serial.print("Signal3 : ");
-    //Serial.println(signal3);
-    //delay(1);
   }
 }
 

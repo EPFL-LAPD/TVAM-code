@@ -89,4 +89,8 @@ fire once every given interval to signal to the DMD to change its image projecti
 * If your printing results are weird. Try `--flip_horizontal` OR `--reverse_angles`. The rotation direction in TVAM makes a difference so maybe your turning convention of the patterns is just the wrong one. There is two choices. Best way to find out, is just to look at the printed results. If the sample is asymmetric, it will make a difference!
 
 
+# Wobbling parameters
+* 10.9.2024: `python .\tvam_code.py -n 50 -p .\images_line\ -v 70 -a 12 -ph 65 -d 1 --flip_vertical`
+* 17.10.2024: `python .\tvam_code.py -n 50 -p .\images_line\ -v 70 -a 15 -ph 70 -d 1 --flip_vertical`
+
 
