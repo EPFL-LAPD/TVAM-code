@@ -112,6 +112,9 @@ def process_arguments():
                         
     parser.add_argument('--flip_horizontal', action='store_true', help="Flip horizontal direction of DMD images.",
                         default=False)
+
+    parser.add_argument('--mode_horizontal', action='store_true', help="This indicates the long edge of the DMD is in the rotation plane. Wobbling correction is applied in the different axis than without this flag.",
+                        default=False)
                         
     parser.add_argument('--notes', action = 'store', help = "Write additional notes to printing log", type=str, default = "None")
  
@@ -182,12 +185,18 @@ def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
 
     if printing_parameters.flip_vertical:
         print("Flip vertical axis of images.")
-        images = images[:, :, ::-1]
+        if printing_parameters.mode_horizontal:
+            images = images[:, ::-1, :]
+        else: 
+            images = images[:, :, ::-1]  
         
+
     if printing_parameters.flip_horizontal:
         print("Flip horizontal axis of images.")
-        images = images[:, ::-1, :]
-    
+        if printing_parameters.mode_horizontal:
+            images = images[:, :, ::-1]
+        else: 
+            images = images[:, ::-1, :]
 
     
     images = images / np.max(images) * 255
@@ -208,7 +217,13 @@ def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
         φ = angles[i]
         shift_value = round(printing_parameters.amplitude * np.sin(φ + 
                                                                  printing_parameters.phase / 360 * 2 * np.pi))
-        images[i, :, :] = np.roll(images[i, :, :], int(np.round(shift_value)), axis=0)
+
+        if printing_parameters.mode_horizontal:
+            axis = 1
+        else:   
+            axis = 0
+        
+        images[i, :, :] = np.roll(images[i, :, :], int(np.round(shift_value)), axis=axis)
     
     print()
     # flatten images for DMD
@@ -225,7 +240,7 @@ def initialize_DMD(images, printing_parameters):
     """
 
     # Load the Vialux .dll
-    dmd = ALP4(version = '4.2')
+    dmd = ALP4(version = '4.3', libDir=".")
     # Initialize the device
     dmd.Initialize()
 
