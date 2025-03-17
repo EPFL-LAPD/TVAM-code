@@ -65,7 +65,8 @@ import warnings
 from PIL import Image
 from colorama import Fore
 import cv2
-
+# to enable .exr image loading https://github.com/opencv/opencv/issues/21928
+os.environ["OPENCV_IO_ENABLE_OPENEXR"]="1"
 
 # this assumes our DMD model and grayscale, otherwise this number might change
 MAX_FREQUENCY_DMD_GRAYSCALE_8BIT = 290
@@ -112,6 +113,8 @@ def process_arguments():
                         
     parser.add_argument('--flip_horizontal', action='store_true', help="Flip horizontal direction of DMD images.",
                         default=False)
+
+    parser.add_argument('-f', "--flat_field", action = 'store', help = "Flat field correction image for DMD. DMD is divided by this", type=str, default = "None")
                         
     parser.add_argument('--notes', action = 'store', help = "Write additional notes to printing log", type=str, default = "None")
  
@@ -189,8 +192,8 @@ def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
         images = images[:, ::-1, :]
     
 
-    
-    images = images / np.max(images) * 255
+
+
     assert (images.shape[1] == 768 and images.shape[2] == 1024), "Image size is not 768 x 1024"
     
     
@@ -211,7 +214,27 @@ def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
         images[i, :, :] = np.roll(images[i, :, :], int(np.round(shift_value)), axis=0)
     
     print()
+
+
+
+    
+    if printing_parameters.flat_field != "None":
+        print("Applying flat field correction")
+        # reshaping batch dimension first
+        flat_field = np.load(printing_parameters.flat_field)[None, :, ::-1]
+        flat_field /= np.max(flat_field)
+        print(flat_field.shape)
+        print(images.shape)
+        print(np.max(flat_field))
+        print(np.min(flat_field))
+        images = images / flat_field
+        print(np.max(images))
+        images = np.array(images / np.max(images) * 255, dtype=np.uint8)
+        print(np.max(images))
+
+
     # flatten images for DMD
+    images = np.array(images / np.max(images) * 255, dtype=np.uint8)
     return images.reshape(images.shape[0], -1)
 
 
