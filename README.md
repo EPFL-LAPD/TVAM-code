@@ -82,6 +82,7 @@ fire once every given interval to signal to the DMD to change its image projecti
 
 # Steps to prepare good printing condition
 * Turn Laser Sign on
+* Turn power sockets on for stage, camera, ...
 * Turn lasers diodes on (top two). Put them in manual mode and increase current to 2x500mA each.
 * Turn ALP software on. Initialize DMD. Put white test pattern. Check with the camera from behind that DMD is illuminated homogenously. Otherwise adjust fibre outcoupling lens.
 * Check wobble. For that insert the metal tip and observe with the camera from behind. Run `python tvam_code.py -D images_line\ -n 10 -a 11 -ph 77`. Adapt values of amplitude and phase of the script such that the tip follows the center line. Also adapt the center position with the micrometer screw in the setup.
