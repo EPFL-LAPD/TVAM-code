@@ -114,8 +114,12 @@ def process_arguments():
     parser.add_argument('--flip_horizontal', action='store_true', help="Flip horizontal direction of DMD images.",
                         default=False)
 
+    parser.add_argument('--shift_vertical', help="Move patterns by a certain amount of DMD pixels vertically.",
+                        action = "store", type=int, default = 0)
+
     parser.add_argument('--mode_horizontal', action='store_true', help="This indicates the long edge of the DMD is in the rotation plane. Wobbling correction is applied in the different axis than without this flag.",
                         default=False)
+
     parser.add_argument('-f', "--flat_field", action = 'store', help = "Flat field correction image for DMD. DMD is divided by this", type=str, default = "None")
                         
     parser.add_argument('--notes', action = 'store', help = "Write additional notes to printing log", type=str, default = "None")
@@ -200,7 +204,11 @@ def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
         else: 
             images = images[:, ::-1, :]
 
-
+    # shift patterns by a DMD pixel amount for better vertical alignment
+    # sign corresponds to camera sign
+    if printing_parameters.shift_vertical != 0:
+        print("Shift patterns verticall by {}".format(printing_parameters.shift_vertical))
+        images = np.roll(images, -printing_parameters.shift_vertical, axis=2)
 
     assert (images.shape[1] == 768 and images.shape[2] == 1024), "Image size is not 768 x 1024"
     
@@ -208,6 +216,7 @@ def load_images_and_correct_rotation_axis_wobbling(printing_parameters):
     
     if printing_parameters.amplitude == 0 and printing_parameters.phase == 0:
         print()
+        images = np.array(images / np.max(images) * 255, dtype=np.uint8)
         return images.reshape(images.shape[0], -1)
     
     # endpoint=False is important! Otherwise 0° and 360° (which is the same) are both included
@@ -262,7 +271,7 @@ def initialize_DMD(images, printing_parameters):
     """
 
     # Load the Vialux .dll
-    dmd = ALP4(version = '4.3', libDir=".")
+    dmd = ALP4(version = '4.2')
     # Initialize the device
     dmd.Initialize()
 

@@ -10,21 +10,31 @@ pip install numpy opencv-python pillow tqdm ALP4lib
 
 ## Full help
 ```
--h, --help            					show this help message and exit
--p PATH_OR_NPZ_FILE, --path PATH_OR_NPZ_FILE            path to images, no default. This can be either a folder containing images (such as .png or
-                                                        .erf). But also a path to a compressed numpy file (.npz) is possible. Compressed numpy expects
-                                                        a 3D array of shape (ANGLES X WIDTH X HEIGHT).
--v VELOCITY, 		--velocity VELOCITY  		rotation speed in deg/sec, default is 60.0
--n NUM_TURNS, 		--num_turns NUM_TURNS 		number of turns, default is 3
--d DUTY_CYCLE, 		--duty_cycle DUTY_CYCLE 	This is a factor which reduces the global intensity of all images. This can be used to fine tune the intensity.
-							The duty cycle has a lower limit how little the intensity can be. This depends on the image rate of the DMD
--ps PORT_STAGE, 	--port_stage PORT_STAGE 	port of the stage, default is "COM6"
--a AMPLITUDE, 		--amplitude AMPLITUDE 		Amplitude of the sinusoidal wobble in DMD pixel,default 0.
--ph PHASE, 		--phase PHASE 			Phase shift of the sinusoidal wobble in degrees, default 0.
---reverse_angles  					Reverse the angle, equivalent to rotating reverse direction
---flip_vertical       				        Flip vertical direction of DMD images.
---flip_horizontal					Flip horizontal direction of DMD images.		
---notes NOTES    					Write additional notes to printing log  
+  -h, --help            show this help message and exit
+  -v VELOCITY, --velocity VELOCITY
+                        rotation speed in deg/sec, default is 60.0
+  -n NUM_TURNS, --num_turns NUM_TURNS
+                        number of turns, default is 3
+  -d DUTY_CYCLE, --duty_cycle DUTY_CYCLE
+                        duty cycle. This is a factor which reduces the global intensity of all images. This can be used to fine tune the intensity. The duty cycle has a lower limit how little the intensity
+                        can be. This depends on the image rate of the DMD.
+  -p PATH, --path PATH  path to images, no default. This can be either a folder containing images (such as .png or .erf). But also a path to a compressed numpy file (.npz) is possible. Compressed numpy
+                        expects a 3D array of shape (ANGLES X WIDTH X HEIGHT).
+  -ps PORT_STAGE, --port_stage PORT_STAGE
+                        port of the stage, default is "COM4"
+  -a AMPLITUDE, --amplitude AMPLITUDE
+                        Amplitude of the sinusoidal wobble in DMD pixel, default 0.
+  -ph PHASE, --phase PHASE
+                        Phase shift of the sinusoidal wobble in degrees, default 0.
+  --reverse_angles      Reverse the angle, equivalent to rotating reverse direction
+  --flip_vertical       Flip vertical direction of DMD images.
+  --flip_horizontal     Flip horizontal direction of DMD images.
+  --shift_vertical SHIFT_VERTICAL
+                        Move patterns by a certain amount of DMD pixels vertically.
+  --mode_horizontal     This indicates the long edge of the DMD is in the rotation plane. Wobbling correction is applied in the different axis than without this flag.
+  -f FLAT_FIELD, --flat_field FLAT_FIELD
+                        Flat field correction image for DMD. DMD is divided by this
+  --notes NOTES         Write additional notes to printing log  
 ```
 
 # Hardware
