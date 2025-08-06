@@ -6,6 +6,11 @@ Additionally it displayes the current inputs and outputs everytime a change occu
 const int inputPin1 = 2;  // Define the pin for the first input signal
 const int inputPin2 = 3;  // Define the pin for the second input signal
 const int outputPin = 5; // Define the pin for the output signal 
+
+
+const int VIBRATION_PIN = A0;
+
+
 void setup() {
   pinMode(inputPin1, INPUT);  // Set the first input pin as an input
   pinMode(inputPin2, INPUT);  // Set the second input pin as an input
@@ -26,12 +31,18 @@ void loop() {
     signal1 = digitalRead(inputPin1); // Read the state of the first input signal
     signal2 = digitalRead(inputPin2); // Read the state of the second input signal
 
+    if (signal 1 == HIGH){
+        digitalWrite(VIBRATION_PIN, HIGH); // Power on A0
+    else {
+        digitalWrite(VIBRATION_PIN, LOW); // Power off
+    }
+      
+    
     if (signal1 == HIGH && signal2 == HIGH) { // Check if both input signals are on
       digitalWrite(outputPin, HIGH);
     } else {
       digitalWrite(outputPin, LOW);
     }
-
   }
 }
 
