@@ -33,7 +33,7 @@ void loop() {
 
     if (signal 1 == HIGH){
         digitalWrite(VIBRATION_PIN, HIGH); // Power on A0
-    else {
+    } else {
         digitalWrite(VIBRATION_PIN, LOW); // Power off
     }
       
