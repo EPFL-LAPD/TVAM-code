@@ -116,6 +116,7 @@ python tvam_code.py -p .\images_white_500\ -ps COM4  -n 40 -v 80 -a 5 -ph 0 --mo
 ```
 * One example file for an optimization could be  below. Please note, the `pixel_size`, `aperture_radius`, `focus_distance`, `distance` are highly setup specific.
 * Try playing with the `weight_sparsity` as the patterns might look very noise or sparse otherwise.
+* LED power is controlled via `upSERIES` and controls the electric current.
 ```
 {
     "vial": {
