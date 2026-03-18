@@ -8,7 +8,9 @@ pip install numpy opencv-python pillow tqdm ALP4lib
 ```
 
 
+
 ## Full help
+To call the printing script, do: `python tvam_code.py`
 ```
   -h, --help            show this help message and exit
   -v VELOCITY, --velocity VELOCITY
@@ -104,6 +106,11 @@ fire once every given interval to signal to the DMD to change its image projecti
 * 10.9.2024: `python .\tvam_code.py -n 50 -p .\images_line\ -v 70 -a 12 -ph 65 -d 1 --flip_vertical`
 * 17.10.2024: `python .\tvam_code.py -n 50 -p .\images_line\ -v 70 -a 15 -ph 70 -d 1 --flip_vertical`
 
+
+
+# Dose test
+A simple dose test can be invoked with: `python .\dose_test.py --exposure_time 10 --square_width 20 --spacing 50 --background_intensity 0`
+This puts a 5x5 grid with intensities 10, 20,...,240, 250. It also saves the projected image as .png.
 
 
 # LED TVAM setup
