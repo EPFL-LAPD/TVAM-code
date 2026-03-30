@@ -8,7 +8,9 @@ pip install numpy opencv-python pillow tqdm ALP4lib
 ```
 
 
+
 ## Full help
+To call the printing script, do: `python tvam_code.py`
 ```
   -h, --help            show this help message and exit
   -v VELOCITY, --velocity VELOCITY
@@ -104,4 +106,80 @@ fire once every given interval to signal to the DMD to change its image projecti
 * 10.9.2024: `python .\tvam_code.py -n 50 -p .\images_line\ -v 70 -a 12 -ph 65 -d 1 --flip_vertical`
 * 17.10.2024: `python .\tvam_code.py -n 50 -p .\images_line\ -v 70 -a 15 -ph 70 -d 1 --flip_vertical`
 
+
+
+# Dose test
+A simple dose test can be invoked with: `python .\dose_test.py --exposure_time 10 --square_width 20 --spacing 50 --background_intensity 0`
+This puts a 5x5 grid with intensities 10, 20,...,240, 250. It also saves the projected image as .png.
+
+
+# LED TVAM setup
+* This setup works with images of size 500x500 and has an applied flat-field correction:
+* The most recent command to launch a print is
+
+```
+cd Documents/TVAM-code
+python tvam_code.py -p .\images_white_500\ -ps COM4  -n 40 -v 80 -a 5 -ph 0 --mode_horizontal --flat_field .\flat_field_500\flat_image_500_two.png
+```
+* One example file for an optimization could be  below. Please note, the `pixel_size`, `aperture_radius`, `focus_distance`, `distance` are highly setup specific.
+* Try playing with the `weight_sparsity` as the patterns might look very noise or sparse otherwise.
+* LED power is controlled via `upSERIES` and controls the electric current.
+```
+{
+    "vial": {
+        "type": "cylindrical",
+        "r_int": 6.363125,
+        "r_ext": 7.354374999999999,
+        "ior": 1.54,
+        "medium": {
+            "ior": 1.484,
+            "phase": {
+                "type": "rayleigh"
+            },
+            "extinction": 0.0895,
+            "albedo": 0.0
+        }
+    },
+    "projector": {
+        "type": "lens",
+        "n_patterns": 192,
+        "resx": 500,
+        "resy": 500,
+        "pixel_size": 0.0219,
+        "motion": "circular",
+        "distance": 180,
+        "focus_distance": 181,
+        "aperture_radius": 6
+    },
+    "sensor": {
+        "type": "dda",
+        "scalex": 8.76,
+        "scaley": 8.76,
+        "scalez": 8.76,
+        "film": {
+            "type": "vfilm",
+            "resx": 400,
+            "resy": 400,
+            "resz": 400
+        }
+    },
+    "target": {
+        "filename": "target2.ply",
+        "size": 6.25
+    },
+    "loss": {
+        "type": "threshold",
+        "tl": 0.7,
+        "tu": 0.93,
+        "weight_sparsity": 0.1
+    },
+    "transmission_only": true,
+    "filter_radon": true,
+    "n_steps": 40,
+    "spp": 100,
+    "spp_grad": 35,
+    "spp_ref": 100,
+    "max_depth": 8
+}
+```
 
