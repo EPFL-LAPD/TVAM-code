@@ -28,7 +28,7 @@ printing_parameters = parser.parse_args()
 exposure_time = float(printing_parameters.exposure_time)
 
 # Create a blank 1024x768 array
-img = int(printing_parameters.background_intensity) + np.zeros((500, 500), dtype=np.uint8)
+img = int(printing_parameters.background_intensity) + np.zeros((768, 1024), dtype=np.uint8)
 
 # Parameters
 
@@ -37,8 +37,8 @@ spacing = int(printing_parameters.spacing)
 n = 5  # 5x5 grid
 
 # Calculate starting positions
-start_x = (500 - (n * square_width + (n - 1) * spacing)) // 2
-start_y = (500 - (n * square_width + (n - 1) * spacing)) // 2
+start_x = (img.shape[1] - (n * square_width + (n - 1) * spacing)) // 2
+start_y = (img.shape[0] - (n * square_width + (n - 1) * spacing)) // 2
 
 # Fill squares with increasing intensity
 intensity = 10
