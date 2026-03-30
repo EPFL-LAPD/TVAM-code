@@ -3,7 +3,8 @@ import argparse
 from PIL import Image
 from ALP4 import *
 import time
-
+from tqdm import tqdm
+import sys
 
 
 parser = argparse.ArgumentParser(description='Simple dose test with a grid of 5x5')
@@ -16,6 +17,7 @@ parser.add_argument('--spacing', help="spacing between the squares",
 parser.add_argument('--background_intensity', help="background",
                         action="store", default=0)
 
+
 # this script displays an image on the DMD until the user interrupts.
 # usage: python dmd_show_image.py image.png
 DMD = ALP4(version = '4.2')
@@ -23,10 +25,10 @@ DMD = ALP4(version = '4.2')
 DMD.Initialize()
 
 printing_parameters = parser.parse_args()
-exposure_time = int(printing_parameters.exposure_time)
+exposure_time = float(printing_parameters.exposure_time)
 
 # Create a blank 1024x768 array
-img = int(printing_parameters.background_intensity) + np.zeros((768, 1024), dtype=np.uint8)
+img = int(printing_parameters.background_intensity) + np.zeros((500, 500), dtype=np.uint8)
 
 # Parameters
 
@@ -35,8 +37,8 @@ spacing = int(printing_parameters.spacing)
 n = 5  # 5x5 grid
 
 # Calculate starting positions
-start_x = (1024 - (n * square_width + (n - 1) * spacing)) // 2
-start_y = (768 - (n * square_width + (n - 1) * spacing)) // 2
+start_x = (500 - (n * square_width + (n - 1) * spacing)) // 2
+start_y = (500 - (n * square_width + (n - 1) * spacing)) // 2
 
 # Fill squares with increasing intensity
 intensity = 10
@@ -66,22 +68,27 @@ try:
     DMD.SetTiming(pictureTime = 4_000)
     # Run the sequence in an infinite loop
     DMD.Run()
-    import sys
 
-# show progress during exposure
-    for i in range(exposure_time):
-        percent = (i + 1) / exposure_time * 100
-    # overwrite the same line in terminal
-        sys.stdout.write(f"\rProgress: {percent:.0f}%")
-        sys.stdout.flush()
-        time.sleep(1)
+    with tqdm(
+        total=exposure_time,
+        unit="s",
+        desc="Exposure",
+        bar_format="{l_bar}{bar}| {n:.2f}s/{total:.2f}s"
+    ) as pbar:
+        start_time = time.time()
+        end_time = start_time + exposure_time
+
+        while time.time() < end_time:
+            elapsed = time.time() - start_time
+            pbar.n = elapsed
+            pbar.refresh()
+            time.sleep(0.1)
+
     print("\nDone!")
-    # time.sleep(exposure_time)
     DMD.Halt()
-    # Free the sequence from the onboard memory
     DMD.FreeSeq()
-    # De-allocate the device
-    DMD.Free() 
+    DMD.Free()
+
 except KeyboardInterrupt:
     # Stop the sequence display
     DMD.Halt()
