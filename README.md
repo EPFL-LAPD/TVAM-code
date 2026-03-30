@@ -114,12 +114,13 @@ This puts a 5x5 grid with intensities 10, 20,...,240, 250. It also saves the pro
 
 
 # LED TVAM setup
-* This setup works with images of size 500x500 and has an applied flat-field correction:
+* This setup works with images of size 500x500 and has an applied flat-field correction.
+* SO the optimized images need to be 500x500 in size.
 * The most recent command to launch a print is
 
 ```
 cd Documents/TVAM-code
-python tvam_code.py -p .\images_white_500\ -ps COM4  -n 40 -v 80 -a 5 -ph 0 --mode_horizontal --flat_field .\flat_field_500\flat_image_500_two.png
+python tvam_code_led.py -p .\images_white_500\ -ps COM4  -n 40 -v 80 -a 5 -ph 0 --mode_horizontal --flat_field .\flat_field_500\flat_image_500_two.png
 ```
 * One example file for an optimization could be  below. Please note, the `pixel_size`, `aperture_radius`, `focus_distance`, `distance` are highly setup specific.
 * Try playing with the `weight_sparsity` as the patterns might look very noise or sparse otherwise.
