@@ -45,10 +45,11 @@ for i in range(n):
         x = start_x + j * (square_width + spacing)
         y = start_y + i * (square_width + spacing)
         img[y:y+square_width, 
-            x:x+square_width] = intensity
+            x:x+square_width] = 5 + intensity
         intensity += 10
 
 # Now `img` is your desired array
+img = np.flipud(img)
 
 # Assuming `img` is your 1024x768 NumPy array
 img_pil = Image.fromarray(img)
@@ -61,11 +62,21 @@ try:
     DMD.SeqAlloc(nbImg = 1, bitDepth = 8)
     # Send the image sequence as a 1D list/array/numpy array
     DMD.SeqPut(imgData = imgSeq)
-    # Set image rate to 50 Hz
+    # picture time in microseconds
     DMD.SetTiming(pictureTime = 4_000)
     # Run the sequence in an infinite loop
     DMD.Run()
-    time.sleep(exposure_time)
+    import sys
+
+# show progress during exposure
+    for i in range(exposure_time):
+        percent = (i + 1) / exposure_time * 100
+    # overwrite the same line in terminal
+        sys.stdout.write(f"\rProgress: {percent:.0f}%")
+        sys.stdout.flush()
+        time.sleep(1)
+    print("\nDone!")
+    # time.sleep(exposure_time)
     DMD.Halt()
     # Free the sequence from the onboard memory
     DMD.FreeSeq()
